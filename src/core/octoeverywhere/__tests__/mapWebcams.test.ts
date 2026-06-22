@@ -37,10 +37,8 @@ const u1: RawListWebcams = {
 };
 
 describe('relayWebcamUrl', () => {
-  it('relays a relative Moonraker path directly (the common case)', () => {
-    expect(relayWebcamUrl(BASE, '/webcam/stream.mjpg?fps=10')).toBe(
-      `${BASE}/webcam/stream.mjpg?fps=10`,
-    );
+  it('relays a relative Moonraker path directly, stripping the rejected fps param', () => {
+    expect(relayWebcamUrl(BASE, '/webcam/stream.mjpg?fps=10')).toBe(`${BASE}/webcam/stream.mjpg`);
     expect(relayWebcamUrl(`${BASE}/`, '/webcam/stream.mjpg')).toBe(`${BASE}/webcam/stream.mjpg`);
   });
 
@@ -61,9 +59,9 @@ describe('relayWebcamUrl', () => {
 });
 
 describe('mapWebcams', () => {
-  it('maps the U1 (relative paths) to relayed stream + snapshot URLs', () => {
+  it('maps the U1 (relative paths) to relayed stream + snapshot URLs (fps stripped)', () => {
     const cam = mapWebcams(u1, BASE)[0];
-    expect(cam.streamUrl).toBe(`${BASE}/webcam/stream.mjpg?fps=10`);
+    expect(cam.streamUrl).toBe(`${BASE}/webcam/stream.mjpg`);
     expect(cam.snapshotUrl).toBe(`${BASE}/webcam/snapshot.jpg`);
     expect(cam.name).toBe('Case');
   });

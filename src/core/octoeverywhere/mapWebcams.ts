@@ -28,13 +28,25 @@ function relayPath(base: string, raw: string | null | undefined): string | null 
 }
 
 /**
+ * Drop an `fps` query param. OctoEverywhere can report an fps the camera
+ * rejects (e.g. `fps=10` when camera-streamer only allows 1 or 5); without it
+ * the camera uses its default, which is what the bare stream URL does.
+ */
+function stripFps(url: string): string {
+  const [path, query] = url.split('?');
+  if (!query) return url;
+  const params = query.split('&').filter((p) => !/^fps=/i.test(p));
+  return params.length ? `${path}?${params.join('&')}` : path;
+}
+
+/**
  * Stream URL for a webcam. Falls back to OctoEverywhere's QuickCam relay path
  * (`/oe-webcam-stream`) when the raw URL can't be relayed directly — that's how
  * the Elegoo CC2 (jmpeg/:8080) is reached.
  */
 export function relayWebcamUrl(baseUrl: string, rawStreamUrl: string | null): string {
   const base = baseUrl.replace(/\/+$/, '');
-  return relayPath(base, rawStreamUrl) ?? `${base}/oe-webcam-stream`;
+  return stripFps(relayPath(base, rawStreamUrl) ?? `${base}/oe-webcam-stream`);
 }
 
 /** Map a raw `list-webcam` result into normalized, render-ready WebcamSources. */
@@ -42,7 +54,7 @@ export function mapWebcams(raw: RawListWebcams, baseUrl: string): WebcamSource[]
   const base = baseUrl.replace(/\/+$/, '');
   return raw.Webcams.filter((w) => w.Enabled !== false).map((w) => ({
     name: w.Name,
-    streamUrl: relayPath(base, w.StreamUrl) ?? `${base}/oe-webcam-stream`,
+    streamUrl: stripFps(relayPath(base, w.StreamUrl) ?? `${base}/oe-webcam-stream`),
     snapshotUrl: relayPath(base, w.SnapshotUrl) ?? undefined,
     flipH: w.FlipH,
     flipV: w.FlipV,

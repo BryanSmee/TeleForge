@@ -55,13 +55,14 @@ export function WebcamView({
     </>
   );
 
+  // Hybrid: the inline preview polls snapshots (light, no stream cap); fullscreen
+  // uses the live MJPEG stream (smooth). Cameras without a snapshot (the CC2) use
+  // the MJPEG stream in both.
+  const usePreviewSnapshot = !fullscreen && !!cam.snapshotUrl;
+
   return (
     <View style={[styles.container, style]}>
-      {cam.snapshotUrl ? (
-        <SnapshotView cam={cam} intervalMs={fullscreen ? 400 : 1000} />
-      ) : (
-        <MjpegView cam={cam} />
-      )}
+      {usePreviewSnapshot ? <SnapshotView cam={cam} intervalMs={1000} /> : <MjpegView cam={cam} />}
       {controls}
     </View>
   );

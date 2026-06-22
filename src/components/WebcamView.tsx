@@ -1,89 +1,71 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import { WebView, type WebViewMessageEvent } from 'react-native-webview';
+import { WebView } from 'react-native-webview';
 import type { WebcamSource } from '../core/model/printer';
-import { colors } from './ui';
+import { Button, colors } from './ui';
 
 // OctoEverywhere caps a relayed webcam stream (~2 min) then back-to-back limits
 // it (607/609). Stream for a window under the cap, then pause and let the user
 // resume — never auto-reconnect in a loop. See docs/spike-findings.md.
 const STREAM_WINDOW_MS = 110_000;
+// A streaming response never fires onLoadEnd, so drop the spinner after this.
+const ASSUME_LIVE_MS = 2000;
 
 type Status = 'connecting' | 'live' | 'error';
 
 export function WebcamView({
   cam,
+  active,
   style,
   onFullscreen,
   onClose,
 }: {
   cam: WebcamSource;
+  /** Whether the printer is printing/paused — the CC2 only streams then. */
+  active: boolean;
   style?: ViewStyle;
   onFullscreen?: () => void;
   onClose?: () => void;
 }) {
+  // When idle we don't auto-stream (it would just hang); the user can force it.
+  const [forced, setForced] = useState(false);
   const [streaming, setStreaming] = useState(true);
   const [nonce, setNonce] = useState(0);
   const [status, setStatus] = useState<Status>('connecting');
+  const liveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const shouldStream = (active || forced) && streaming;
 
   // Auto-pause at the end of the streaming window.
   useEffect(() => {
-    if (!streaming) return;
+    if (!shouldStream) return;
     const timer = setTimeout(() => setStreaming(false), STREAM_WINDOW_MS);
     return () => clearTimeout(timer);
-  }, [streaming, nonce]);
+  }, [shouldStream, nonce]);
 
-  const origin = useMemo(() => originOf(cam.streamUrl), [cam.streamUrl]);
-  const html = useMemo(() => streamHtml(cam), [cam]);
+  // A multipart MJPEG response keeps loading forever, so assume it's live after
+  // a short grace period unless an error fires first. (Status is reset to
+  // 'connecting' by restart() and the initial state, not synchronously here.)
+  useEffect(() => {
+    if (!shouldStream) return;
+    liveTimer.current = setTimeout(() => setStatus('live'), ASSUME_LIVE_MS);
+    return () => clearTimeout(liveTimer.current);
+  }, [shouldStream, nonce]);
 
-  const resume = () => {
+  const restart = () => {
+    setForced(true);
+    setStreaming(true);
     setStatus('connecting');
     setNonce((n) => n + 1);
-    setStreaming(true);
   };
 
-  const onMessage = (e: WebViewMessageEvent) => {
-    const msg = e.nativeEvent.data;
-    if (msg === 'load') setStatus('live');
-    else if (msg === 'error') setStatus('error');
+  const fail = () => {
+    clearTimeout(liveTimer.current);
+    setStatus('error');
   };
 
-  return (
-    <View style={[styles.container, style]}>
-      {streaming ? (
-        <>
-          <WebView
-            key={nonce}
-            originWhitelist={['*']}
-            source={{ html, baseUrl: origin }}
-            style={styles.webview}
-            javaScriptEnabled
-            domStorageEnabled
-            mixedContentMode="always"
-            allowsInlineMediaPlayback
-            scrollEnabled={false}
-            onMessage={onMessage}
-            onError={() => setStatus('error')}
-          />
-          {status === 'connecting' && (
-            <View style={styles.overlayCenter} pointerEvents="none">
-              <ActivityIndicator color={colors.accent} />
-            </View>
-          )}
-          {status === 'error' && (
-            <Pressable style={styles.overlayCenter} onPress={resume}>
-              <Text style={styles.title}>Stream unavailable</Text>
-              <Text style={styles.muted}>Tap to retry</Text>
-            </Pressable>
-          )}
-        </>
-      ) : (
-        <Pressable style={styles.overlayCenter} onPress={resume}>
-          <Text style={styles.title}>Stream paused</Text>
-          <Text style={styles.muted}>Tap to resume</Text>
-        </Pressable>
-      )}
-
+  const controls = (
+    <>
       {onFullscreen && (
         <Pressable style={[styles.iconButton, styles.topRight]} onPress={onFullscreen} hitSlop={8}>
           <Text style={styles.icon}>⤢</Text>
@@ -94,31 +76,62 @@ export function WebcamView({
           <Text style={styles.icon}>✕</Text>
         </Pressable>
       )}
+    </>
+  );
+
+  // Idle and not forced: explain why, offer to try anyway.
+  if (!active && !forced) {
+    return (
+      <View style={[styles.container, style]}>
+        <View style={styles.overlayCenter}>
+          <Text style={styles.title}>Webcam idle</Text>
+          <Text style={styles.muted}>The printer streams its camera while printing.</Text>
+          <View style={{ marginTop: 12 }}>
+            <Button label="Try anyway" onPress={restart} />
+          </View>
+        </View>
+        {controls}
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, style]}>
+      {shouldStream ? (
+        <WebView
+          key={nonce}
+          originWhitelist={['*']}
+          source={{ uri: cam.streamUrl }}
+          style={styles.webview}
+          allowsInlineMediaPlayback
+          scrollEnabled={false}
+          onError={fail}
+          onHttpError={fail}
+        />
+      ) : (
+        <Pressable style={styles.overlayCenter} onPress={restart}>
+          <Text style={styles.title}>Stream paused</Text>
+          <Text style={styles.muted}>Tap to resume</Text>
+        </Pressable>
+      )}
+
+      {shouldStream && status === 'connecting' && (
+        <View style={styles.overlayCenter} pointerEvents="none">
+          <ActivityIndicator color={colors.accent} />
+        </View>
+      )}
+      {shouldStream && status === 'error' && (
+        <Pressable style={styles.overlayCenter} onPress={restart}>
+          <Text style={styles.title}>Stream unavailable</Text>
+          <Text style={styles.muted}>
+            {active ? 'Tap to retry' : 'The camera may only stream while printing — tap to retry'}
+          </Text>
+        </Pressable>
+      )}
+
+      {controls}
     </View>
   );
-}
-
-function originOf(url: string): string {
-  try {
-    return new URL(url).origin;
-  } catch {
-    return url;
-  }
-}
-
-/**
- * Minimal HTML rendering the MJPEG stream centered, with the camera transform
- * applied. `<img>` load/error are reported back to RN via postMessage so the
- * component can show connecting/error states (and surface logs).
- */
-function streamHtml(cam: WebcamSource): string {
-  const transform = `rotate(${cam.rotation}deg) scaleX(${cam.flipH ? -1 : 1}) scaleY(${cam.flipV ? -1 : 1})`;
-  const post = (m: string) => `window.ReactNativeWebView&&window.ReactNativeWebView.postMessage('${m}')`;
-  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;background:#000;height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden">
-<img src="${cam.streamUrl}" onload="${post('load')}" onerror="${post('error')}"
-     style="max-width:100%;max-height:100%;transform:${transform}"/>
-</body></html>`;
 }
 
 const styles = StyleSheet.create({
@@ -132,10 +145,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    paddingHorizontal: 24,
   },
   title: { color: colors.text, fontSize: 16, fontWeight: '700' },
-  muted: { color: colors.muted, fontSize: 13 },
+  muted: { color: colors.muted, fontSize: 13, textAlign: 'center', marginTop: 4 },
   iconButton: {
     position: 'absolute',
     backgroundColor: 'rgba(0,0,0,0.5)',

@@ -57,7 +57,12 @@ export default function PrinterDashboardScreen() {
       <ConnectionBanner state={state} error={error} />
 
       {cam && !fullscreen && (
-        <WebcamView cam={cam} style={styles.webcamPreview} onFullscreen={() => setFullscreen(true)} />
+        <WebcamView
+          cam={cam}
+          active={state?.isActive ?? false}
+          style={styles.webcamPreview}
+          onFullscreen={() => setFullscreen(true)}
+        />
       )}
 
       <Modal
@@ -67,7 +72,14 @@ export default function PrinterDashboardScreen() {
         onRequestClose={() => setFullscreen(false)}
       >
         <View style={styles.fullscreen}>
-          {cam && <WebcamView cam={cam} style={styles.fullscreenView} onClose={() => setFullscreen(false)} />}
+          {cam && (
+            <WebcamView
+              cam={cam}
+              active={state?.isActive ?? false}
+              style={styles.fullscreenView}
+              onClose={() => setFullscreen(false)}
+            />
+          )}
         </View>
       </Modal>
 

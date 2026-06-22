@@ -4,35 +4,45 @@ The source-level half of the OctoEverywhere spike is written up in
 [`../docs/spike-findings.md`](../docs/spike-findings.md). This folder holds the
 **live half** — checks that need your own OctoEverywhere account + CC2.
 
-## Getting credentials (there is no "token" page)
+> **Prerequisite:** an OctoEverywhere **Supporter** account (remote API access
+> requires it; otherwise calls return `605`). ✅ confirmed available.
 
-App Connection credentials are **minted once** by the App Connection Portal —
-they are not shown anywhere in the OctoEverywhere dashboard, and can't be
-re-queried. For a quick manual test you don't need to register an app; use the
-public **`devtest`** app id:
+## Getting a connection URL — two options
 
-> **Prerequisite:** your OctoEverywhere account must have **Supporter Perks** —
-> App Connections require it. Without it every call returns `605`.
+### Option A — Shared Connection (recommended; no app registration)
 
-1. Open in a browser:
-   `https://octoeverywhere.com/appportal/v1/?appId=devtest`
-2. Log in, select your **CC2**, and authorize.
-3. The portal redirects to
-   `…/appportal/v1/complete?success=true&id=…&url=…&authBearerToken=…&appApiToken=…&authBasicHttpUser=…&authBasicHttpPassword=…`
-4. Copy these (URL-**decode** them) from the address bar:
-   - `url` → the substitute base URL (e.g. `https://app-xxxx.octoeverywhere.com`)
-   - `authBearerToken` → connection auth for the **printer/command API**
-   - `appApiToken` → *optional*, only for the OE **account info** API
+The simplest path for a personal app. You create the link yourself:
 
-> These are returned **once**. Copy immediately; if lost, redo the portal.
-> For a real (non-`devtest`) app you need your own `appId` — contact OE support.
+1. Go to <https://octoeverywhere.com/sharedconnections> and create a Shared
+   Connection for your **CC2**.
+2. Copy the generated URL. Note whatever auth it gives you — it may be embedded
+   in the URL, or shown as a Bearer token / basic user+password.
+
+No `appId`, no OAuth portal, no one-time-token to capture.
+
+### Option B — App Connection portal (for a published multi-user app)
+
+Credentials are **minted once** by the portal (not shown in any dashboard). Use
+the public **`devtest`** app id for testing:
+
+1. Open `https://octoeverywhere.com/appportal/v1/?appId=devtest`, log in, pick
+   the **CC2**, authorize.
+2. From the completion redirect address bar, copy (URL-decoded): `url`,
+   `authBearerToken`, and optionally `appApiToken`. These are returned **once**.
 
 ## Running `verify-oe.mjs`
 
 Read-only: calls `ping`, `status`, `list-webcam`, and (if `OE_APITOKEN` is set)
-the account `info` API. Nothing is paused/cancelled/changed.
+the account `info` API. Nothing is paused/cancelled/changed. Pass whichever auth
+your connection uses:
 
 ```bash
+# Shared Connection (try no-auth first; add creds if you get 401/403/606)
+OE_URL="<sharedConnectionUrl>" node spike/verify-oe.mjs
+OE_URL="..." OE_BEARER="<token>" node spike/verify-oe.mjs
+OE_URL="..." OE_USER="<u>" OE_PASS="<p>" node spike/verify-oe.mjs
+
+# App Connection
 OE_URL="<url>" OE_BEARER="<authBearerToken>" OE_APITOKEN="<appApiToken>" \
   node spike/verify-oe.mjs
 ```

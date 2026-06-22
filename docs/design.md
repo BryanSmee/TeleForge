@@ -83,13 +83,26 @@ No proxy server. Rationale:
   relay (or LAN).
 - The **adapter / normalization layer is pure TypeScript** — it belongs in the
   app (and a shareable `packages/core` workspace), not on a server.
-- **Auth needs no secret.** OE's App Connection flow is a WebView portal that
-  returns a token scoped to one app+printer (see
-  [`octoeverywhere-auth.md`](./octoeverywhere-auth.md)). There is no confidential
-  client secret to protect, so the single reason to deploy a Lambda evaporates.
+- **Auth needs no secret.** Remote access uses a per-printer substitute URL +
+  header auth — no confidential client secret to protect, so the single reason to
+  deploy a Lambda evaporates.
 
 Net: **nothing to deploy, nothing to keep running.** The reusable asset is the
 `core` package, not infrastructure.
+
+### 3.4 OctoEverywhere auth path — Shared Connections for v1 ✅ decided
+
+Two paths exist (full comparison in [`octoeverywhere-auth.md`](./octoeverywhere-auth.md)):
+
+- **v1 — Shared Connections:** Bryan creates one link per printer at
+  [/sharedconnections](https://octoeverywhere.com/sharedconnections) and pastes
+  the URL into the app. No `appId`, no OAuth portal to build, no registration.
+  Ideal for a personal app; Supporter tier (already held) covers it.
+- **📌 TODO later (kept, not discarded) — App Connection portal:** the
+  OAuth-style hosted login for a *published, multi-user* TeleForge. Likely the
+  final-state auth flow, so it stays fully documented. Deferred only because v1
+  is personal. **Adopting it later is additive** — the data layer is identical
+  (same substitute URL → same command API), so no rewrite.
 
 ### 3.3 Recommended library stack
 

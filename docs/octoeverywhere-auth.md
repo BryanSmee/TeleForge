@@ -26,6 +26,46 @@ Two important truths discovered during the spike:
 No confidential client secret is involved → the flow runs fully client-side, no
 backend required.
 
+## Two integration paths (pick per goal)
+
+OctoEverywhere offers two ways to get remote API/WebSocket access to a printer.
+Both end with the same thing: a **substitute base URL** you use in place of the
+printer's LAN address, and they both reach the same `/octoeverywhere-command-api/`.
+
+| | **Shared Connection** | **App Connection (portal)** |
+|---|---|---|
+| Setup | User creates a link at [/sharedconnections](https://octoeverywhere.com/sharedconnections) | App opens the OAuth-style portal |
+| `appId` / registration | ❌ none | ✅ required (or `devtest` for testing) |
+| In-app flow to build | none — user pastes a URL | WebView portal + redirect parsing |
+| Multi-user / published app | clunky (each user makes links) | designed for it (smooth login) |
+| Extra OE APIs (account info, Gadget AI) | not tied to it | yes (via `appApiToken`) |
+| Best for | **a personal app (TeleForge v1)** | a published, multi-user app |
+
+**Decision for TeleForge v1: use Shared Connections.** Bryan creates one link per
+printer in his own (Supporter) account and pastes the URL into the app — no
+`appId`, no portal to build.
+
+> 📌 **TODO (later, do NOT remove):** the App Connection portal path — fully
+> documented in the sections below — is the **productization path** for if/when
+> TeleForge is published for other users (smooth in-app OAuth-style login, auto
+> printer selection, account-info & Gadget AI APIs). It is kept on purpose as the
+> likely final-state auth flow; v1 simply doesn't build it yet. The data layer is
+> identical either way (same substitute URL → same command API), so adopting it
+> later is additive, not a rewrite.
+
+> Auth on a Shared Connection (token in URL vs. Bearer vs. basic) is shown when
+> you create the link; `spike/verify-oe.mjs` accepts any of them. Verify the
+> exact form against your own link — it's the one detail not confirmable from the
+> public docs.
+
+---
+
+# App Connection portal — 📌 TODO (deferred to productization; keep)
+
+> Everything below documents the **App Connection portal** path. It is **not
+> built in v1** (v1 uses Shared Connections, above) but is retained as the
+> intended path for a published, multi-user TeleForge. Do not delete.
+
 ## Prerequisite: an `appId`
 
 The portal needs an **`appId`** assigned by OctoEverywhere (contact OE support).

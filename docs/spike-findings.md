@@ -36,33 +36,32 @@ With `State:"idle"`, `Progress`/`FileName`/`TimeLeftSec`/`TotalLayers` were
 the previous print**. → The app must **gate all `CurrentPrint` rendering on
 `State` being `printing`/`paused`**; never trust those fields when idle.
 
-### ⚠️ Caveat 2 — the CC2 webcam is **NOT reachable via a plain Shared Connection**
-**Live-tested:** `curl -H "oe-snapshot: 1" "<sharedUrl>/"` returned the printer's
-**web-UI HTML**, not a JPEG. Root cause, traced through the source:
+### ✅ Caveat 2 (resolved) — remote webcam works via the fixed `/oe-webcam-stream` path
+**Live-confirmed:** `GET <sharedConnectionUrl>/oe-webcam-stream` returns the CC2's
+MJPEG stream remotely. (Setting the `oe-snapshot` header on `/` does *not* work —
+that's a trusted service-set header; the correct interface is this fixed path.)
 
-- OE serves webcams via two mechanisms:
-  1. A **`RelayWebcamStreamDetector`** that recognizes the webcam's stream *path*
-     on a relayed request and converts it to an internal "oracle" webcam request.
-     The **original Centauri registers one** (`elegoohost.py`) — but the **CC2
-     does NOT** (`elegoocc2host.py` has none).
-  2. **QuickCam** — OE's own streaming subsystem. The **CC2 uses only this**: the
-     companion pulls the CC2 MJPEG at `:8080`, and frames are served when the OE
-     **service** injects `oe-snapshot`/`oe-webcamstream` headers. Those headers
-     are *service-set and trusted* — a client can't inject them through a raw
-     Shared Connection (confirmed: ours was ignored). QuickCam also **enables the
-     camera over MQTT** on stream start (`SendEnableWebcamCommand`), and only
-     keeps streaming while printing.
+How it fits the source: the CC2 has no `RelayWebcamStreamDetector` and serves its
+camera only through OE's **QuickCam** subsystem (companion pulls the CC2 MJPEG at
+`:8080`, enables the cam over MQTT, streams while printing). The OE **service/relay
+layer** exposes that QuickCam stream at the fixed, undocumented relay path
+**`/oe-webcam-stream`** — which is why a raw header didn't work but this path does.
 
-**Conclusion:** remote CC2 webcam is an OE **service-layer** feature, not
-something the Shared Connection HTTP relay exposes. Realistic options:
+**Design implication (matches Bryan's instinct):** the stream *path* is an OE
+convention (same across printers), but the per-printer specifics should be
+**auto-discovered from `list-webcam`**, not hardcoded:
 
-| Option | How | Trade-off |
-|--------|-----|-----------|
-| **Local-network webcam** | Hit the CC2's `http://<ip>:8080/?action=stream` directly when the phone is on the same LAN (enable cam first via CC2 MQTT) | No remote webcam; simplest; fits Shared-Connection v1 |
-| **App Connection path** (deferred) | Use OE's service-level webcam streaming with `appApiToken` | Remote webcam works, but needs the deferred `appId`/portal path |
+- `list-webcam` → `Webcams[]` (name), `DefaultIndex`, and per-cam `FlipH`,
+  `FlipV`, `Rotation`. Use these to pick the camera (index) and apply the correct
+  display transform.
+- Stream via `<connUrl>/oe-webcam-stream`; select the camera by index
+  (`oe-webcam-index` header, or likely `?index=<n>` — **confirm empirically**).
+- A **`/oe-webcam-snapshot`**-style JPEG endpoint likely exists too — **verify**.
+- Subject to OE account **webcam limits** (`607` / `609`, stream length).
 
-Status, controls, and temps are **unaffected** — they work fully over the Shared
-Connection. Only the webcam is gated by this.
+So the app's webcam layer = "discover cams from `list-webcam` → stream
+`/oe-webcam-stream` → apply transforms." Works remotely over the Shared
+Connection; **no App path or LAN required.** Status/controls/temps unaffected.
 
 ## Headline results (and one correction to the original design)
 
@@ -155,8 +154,8 @@ controls a printer can't do). For CC2 the plugin advertises
 | **Fan read / set** | ❌ (normalized) | **Not in status payload, no setter** → raw MQTT only |
 | Light on/off, home, move axis | ✅ | |
 | Start print / file list / upload | ❌ | Not supported on CC2 |
-| Webcam list (metadata) | ✅ | `list-webcam` works; `StreamUrl` is a LAN address |
-| Webcam **view remotely** | ❌ via Shared Connection | CC2 uses QuickCam (service-layer); needs App path or LAN — see Caveat 2 |
+| Webcam list (metadata) | ✅ | `list-webcam` → name, `DefaultIndex`, flip/rotation |
+| Webcam **view remotely** | ✅ | `GET <connUrl>/oe-webcam-stream` (MJPEG) — live-confirmed; see Caveat 2 |
 | Live push (no polling) | ⚠️ | Via `proxy/mqtt` WebSocket (raw MQTT) |
 
 ### Important consequence for your requirements

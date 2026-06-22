@@ -145,8 +145,9 @@ Two paths exist (full comparison in [`octoeverywhere-auth.md`](./octoeverywhere-
 - [ ] OE account **relay limits** apply to webcam streaming and file transfer
   (surfaced by the App Connection Info API). Confirm they're acceptable for
   continuous webcam viewing; LAN transport sidesteps them.
-- [ ] Exact CC2 webcam path through OE (OE webcam endpoint vs. CarbonicSidecar
-  MJPEG :3000 / go2rtc :1984 on LAN).
+- [x] CC2 webcam path through OE — **resolved:** remote MJPEG works at
+  `<connUrl>/oe-webcam-stream`; per-printer config auto-discovered via
+  `list-webcam`. Still to confirm: camera-index param form and a snapshot endpoint.
 - [ ] Registering the app with OE to obtain an **`appId`** (prerequisite for the
   portal; `devtest` works for spikes).
 - [ ] **OctoEverywhere Supporter Perks are required** for App Connections — both

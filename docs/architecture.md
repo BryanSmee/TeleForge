@@ -218,20 +218,27 @@ client (or tests in Node) can reuse the exact adapters and transports.
 
 ## 6. Webcam handling
 
-**Live finding (see [`spike-findings.md`](./spike-findings.md) Caveat 2):** the
-**CC2 webcam is not reachable through a plain Shared Connection** — it's served
-by OE's service-layer QuickCam, not the HTTP relay. Two viable paths:
+**Live-confirmed (see [`spike-findings.md`](./spike-findings.md) Caveat 2):** the
+CC2 webcam **works remotely** over the Shared Connection at the fixed OE relay
+path **`<connUrl>/oe-webcam-stream`** (MJPEG). Per-printer specifics are
+**auto-discovered**, not hardcoded:
 
-| Path | How | When |
-|------|-----|------|
-| **LAN MJPEG** | `react-native-webview` on `http://<cc2-ip>:8080/?action=stream` (enable cam via CC2 MQTT first) | v1, phone on same network |
-| **OE service webcam** | appApiToken + OE webcam streaming | with the deferred App Connection path |
+```
+list-webcam  →  Webcams[] (name), DefaultIndex, FlipH/FlipV/Rotation
+                          │
+                          ▼  pick camera index + display transform
+render  <connUrl>/oe-webcam-stream  (+ index via oe-webcam-index / ?index=)
+        in react-native-webview (MJPEG), applying flip/rotation
+```
 
-The **U1** (Klipper) registers a relay webcam detector, so its stream *path*
-works through the relay — U1 remote webcam is easier than CC2.
+- Camera index selection (`oe-webcam-index` header vs `?index=`) and a
+  `/oe-webcam-snapshot` JPEG endpoint are **to confirm empirically**.
+- Subject to OE webcam relay limits (607/609).
+- **Local mode (later):** direct `http://<cc2-ip>:8080/?action=stream`, or go2rtc
+  WebRTC via `react-native-webrtc` (needs a Dev Client) for low latency.
 
-Decision pending (see open questions): v1 webcam = LAN-only, with remote CC2
-webcam folded into the deferred App path.
+A `WebcamSource` is therefore derived from `list-webcam` per printer; the app
+doesn't need printer-specific webcam presets baked in.
 
 ## 7. Add-printer / auth sequence
 

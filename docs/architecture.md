@@ -233,7 +233,10 @@ render  <connUrl>/oe-webcam-stream  (+ index via oe-webcam-index / ?index=)
 
 - Camera index selection (`oe-webcam-index` header vs `?index=`) and a
   `/oe-webcam-snapshot` JPEG endpoint are **to confirm empirically**.
-- Subject to OE webcam relay limits (607/609).
+- **Stream cap ~2 min + back-to-back limit (607/609).** Mirror OE's app: run the
+  live stream for the window, then **pause and prompt "still watching?"** — never
+  auto-reconnect in a loop. Use **snapshot polling** for the dashboard/idle view
+  and reserve the live MJPEG stream for active viewing.
 - **Local mode (later):** direct `http://<cc2-ip>:8080/?action=stream`, or go2rtc
   WebRTC via `react-native-webrtc` (needs a Dev Client) for low latency.
 

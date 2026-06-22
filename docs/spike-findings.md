@@ -57,7 +57,13 @@ convention (same across printers), but the per-printer specifics should be
 - Stream via `<connUrl>/oe-webcam-stream`; select the camera by index
   (`oe-webcam-index` header, or likely `?index=<n>` — **confirm empirically**).
 - A **`/oe-webcam-snapshot`**-style JPEG endpoint likely exists too — **verify**.
-- Subject to OE account **webcam limits** (`607` / `609`, stream length).
+- **Stream length is capped (~2 min), then back-to-back limited** (`607`/`609`).
+  OE's own app stops at the cap and shows a *"still watching?"* prompt rather than
+  silently reconnecting — TeleForge must do the same: stream for the window, then
+  **pause and prompt to resume** (don't auto-reconnect in a loop, which trips the
+  back-to-back limit). **Snapshot polling** (the snapshot endpoint, every 1–5 s)
+  is the right pattern for the idle/dashboard view; reserve the live stream for
+  when the user is actively watching.
 
 So the app's webcam layer = "discover cams from `list-webcam` → stream
 `/oe-webcam-stream` → apply transforms." Works remotely over the Shared

@@ -51,7 +51,7 @@ export class OctoEverywhereClient {
   /** Normalized current status. */
   async getStatus(now: number = Date.now()): Promise<PrinterState> {
     const result = await this.command<RawStatusResult>('status', 'GET');
-    return mapStatus(result, this.base, now);
+    return mapStatus(result, now);
   }
 
   /** Normalized webcam list (with remote stream URLs). */

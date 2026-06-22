@@ -2,7 +2,6 @@ import { describe, it, expect } from '@jest/globals';
 import { mapStatus } from '../mapStatus';
 import { OeFeature, type RawStatusResult } from '../raw';
 
-const BASE = 'https://shared-test.octoeverywhere.com';
 const FEATURES = OeFeature.LIGHT_CONTROL | OeFeature.AXIS_MOVEMENT | OeFeature.HOMING | OeFeature.TEMPERATURE_CONTROL;
 
 // Mirrors the real idle payload captured from the CC2 during the spike:
@@ -61,7 +60,7 @@ const printingStatus: RawStatusResult = {
 };
 
 describe('mapStatus — idle (stale CurrentPrint must be ignored)', () => {
-  const state = mapStatus(idleStatus, BASE, 1_000_000);
+  const state = mapStatus(idleStatus, 1_000_000);
 
   it('reports an idle, inactive connection', () => {
     expect(state.connection).toBe('idle');
@@ -99,7 +98,7 @@ describe('mapStatus — idle (stale CurrentPrint must be ignored)', () => {
 
 describe('mapStatus — printing', () => {
   const now = 1_000_000;
-  const state = mapStatus(printingStatus, BASE, now);
+  const state = mapStatus(printingStatus, now);
 
   it('is active and exposes the job', () => {
     expect(state.isActive).toBe(true);

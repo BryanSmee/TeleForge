@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { usePrintersStore } from '../../../src/store/printers';
 import { usePrinterStatus } from '../../../src/hooks/usePrinterStatus';
 import { OctoEverywhereClient } from '../../../src/core/octoeverywhere';
-import type { PrinterState, TempChannel } from '../../../src/core/model/printer';
+import type { PrinterState, TempChannel, WebcamSource } from '../../../src/core/model/printer';
 import { Button, Card, ProgressBar, colors } from '../../../src/components/ui';
 import { WebcamView } from '../../../src/components/WebcamView';
 import { formatClock, formatDuration } from '../../../src/lib/format';
@@ -19,6 +19,20 @@ export default function PrinterDashboardScreen() {
     () => (printer ? new OctoEverywhereClient({ baseUrl: printer.baseUrl }) : undefined),
     [printer],
   );
+
+  // Webcams must come from list-webcam (status omits the stream/snapshot URLs).
+  const [webcams, setWebcams] = useState<WebcamSource[]>([]);
+  useEffect(() => {
+    if (!client) return;
+    let cancelled = false;
+    client
+      .listWebcams()
+      .then((w) => !cancelled && setWebcams(w))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
 
   if (!printer) {
     return (
@@ -48,7 +62,7 @@ export default function PrinterDashboardScreen() {
     ]);
   };
 
-  const cam = state?.webcams[0];
+  const cam = webcams[0];
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>

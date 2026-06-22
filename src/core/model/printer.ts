@@ -91,7 +91,6 @@ export interface PrinterState {
   /** Present only when `isActive` (idle status fields are stale, see spike). */
   job?: Job;
   temps: TempChannel[];
-  webcams: WebcamSource[];
   capabilities: Capabilities;
   platformVersion?: string;
   /** When this snapshot was produced (epoch ms). */

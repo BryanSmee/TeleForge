@@ -3,6 +3,15 @@
 > Pre-implementation sketch. Interfaces below are illustrative TypeScript to
 > pin down the shape of the system, not final code.
 
+> **⚠️ Revised by the spike ([`spike-findings.md`](./spike-findings.md)).** The
+> Adapter/Transport model below is the *full* design, used for **local LAN
+> mode**. For the **remote MVP**, the OctoEverywhere **Plugin/Command API**
+> already normalizes every printer, so v1 is a single `OctoEverywhereClient`
+> hitting `/octoeverywhere-command-api/` (poll `status`, call
+> `pause`/`resume`/`cancel`/`set-temp`) — no per-model adapter required. The
+> per-protocol adapters here apply to the later local-mode and advanced (fan /
+> raw-MQTT) work.
+
 ## 1. Layered overview
 
 ```

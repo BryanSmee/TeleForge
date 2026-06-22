@@ -28,3 +28,5 @@ today) and a **Snapmaker U1** — bridged remotely through
 - [Design](./docs/design.md) — scope, decisions, rationale, roadmap, risks.
 - [Architecture](./docs/architecture.md) — layers, interfaces, repo layout, data flow.
 - [OctoEverywhere Auth](./docs/octoeverywhere-auth.md) — App Connection portal & relay.
+- [Spike Findings](./docs/spike-findings.md) — source-verified OE relay + CC2 facts (CC2 is MQTT; OE's normalized Command API is the primary remote interface).
+- [`/spike`](./spike) — runnable read-only script to verify the OE Command API against your own account.

@@ -32,21 +32,24 @@ remotely through **OctoEverywhere** (OE), and optionally directly over the LAN.
 This is **not primarily an Android problem** — it's a *data-normalization*
 problem with a dashboard UI on top.
 
-- The **CC2** speaks **SDCP** (Smart Device Control Protocol): JSON over a
-  WebSocket. It exposes temps (nozzle/bed/chamber), fans, lighting, print
-  progress/ETA/filename, and pause/resume/cancel.
-- The **U1** is **stock Klipper + Moonraker** with minor customizations — a
-  well-understood JSON-RPC-over-WebSocket + REST API. Effectively a solved
-  problem.
-- **OctoEverywhere** relays *both* transparently: after authorization you make
-  **the same HTTP/WebSocket calls you'd make on the LAN**, just against a relay
-  URL with an auth header. CC2 is supported via OE companion mode
-  `elegoo_cc2`; Klipper via `klipper`.
+> **Updated by the spike — see [`spike-findings.md`](./spike-findings.md).**
+> The CC2 is **MQTT**-based (not SDCP — that's the *original* Centauri), and more
+> importantly OctoEverywhere already exposes a **normalized cross-platform
+> Command API** that makes per-printer adapters unnecessary on the remote path.
 
-So the heavy lifting is a small set of **per-model adapters** that normalize two
-different printer protocols into one shared state model, plus a **transport**
-abstraction that swaps "LAN" for "OE relay" without the adapters caring. The UI
-is then a fairly standard live dashboard.
+- The **CC2** speaks an **MQTT** protocol. The **U1** is **stock Klipper +
+  Moonraker**. These differ, *but you don't have to deal with that remotely:*
+- **OctoEverywhere** exposes a normalized **Plugin / Command API** at
+  `/octoeverywhere-command-api/` that is identical across OctoPrint, Moonraker,
+  Bambu, and Elegoo CC2 — reachable through the relay with an `AppToken` header.
+  It returns normalized status (progress, ETA, temps, layers, filename, webcams)
+  and accepts pause/resume/cancel/set-temp. CC2 uses companion mode `elegoo_cc2`.
+
+So for the **remote path** the heavy lifting is essentially done for us: a single
+client over the Command API, mapping its JSON to one shared state model.
+**Per-protocol adapters (CC2 MQTT, U1 Moonraker) are only needed for local LAN
+mode and for features the normalized API omits (fans, chamber-set).** The UI is
+then a standard live dashboard. (Details + capability matrix in the spike doc.)
 
 ## 3. Technology decisions
 

@@ -30,7 +30,7 @@ function mapModel(platformVersion?: string): PrinterModel {
   if (!platformVersion) return 'unknown';
   const v = platformVersion.toLowerCase();
   if (v.includes('cc2') || v.includes('centauri')) return 'cc2';
-  if (v.includes('klipper') || v.includes('moonraker') || v.includes('u1')) return 'u1';
+  if (v.includes('klipper') || v.includes('moonraker')) return 'klipper';
   return 'unknown';
 }
 

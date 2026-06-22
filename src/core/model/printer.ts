@@ -8,7 +8,16 @@
  * testable and reusable (future `packages/core`).
  */
 
-export type PrinterModel = 'cc2' | 'u1' | 'unknown';
+/**
+ * Printer platform family.
+ *
+ * Keyed on the *protocol/platform*, not the specific printer: standard
+ * Klipper/Moonraker printers (the Snapmaker U1 included) all share `'klipper'`
+ * so one adapter serves them; only proprietary platforms (the Elegoo CC2, with
+ * its bespoke MQTT) get a dedicated id. Add a specific id only when a printer
+ * genuinely deviates from its family.
+ */
+export type PrinterModel = 'cc2' | 'klipper' | 'unknown';
 
 /** High-level connection / activity state. */
 export type ConnectionState =

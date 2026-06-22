@@ -135,7 +135,10 @@ Net: **nothing to deploy, nothing to keep running.** The reusable asset is the
 - [ ] Exact CC2 webcam path through OE (OE webcam endpoint vs. CarbonicSidecar
   MJPEG :3000 / go2rtc :1984 on LAN).
 - [ ] Registering the app with OE to obtain an **`appId`** (prerequisite for the
-  portal).
+  portal; `devtest` works for spikes).
+- [ ] **OctoEverywhere Supporter Perks are required** for App Connections — both
+  printers' owner account must be a supporter, or all relay calls return `605`.
+  Confirm this is acceptable (it's a paid tier).
 
 ## 6. Reference material
 

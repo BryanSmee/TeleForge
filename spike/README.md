@@ -2,30 +2,47 @@
 
 The source-level half of the OctoEverywhere spike is written up in
 [`../docs/spike-findings.md`](../docs/spike-findings.md). This folder holds the
-**live half** — checks that need your own OctoEverywhere account + CC2, which
-can't run in CI/sandbox.
+**live half** — checks that need your own OctoEverywhere account + CC2.
 
-## `verify-oe.mjs`
+## Getting credentials (there is no "token" page)
 
-Read-only probe of the OE Plugin/Command API through an App Connection. It only
-calls `ping`, `status`, `list-webcam`, and `get-connection-info` — nothing is
-paused, cancelled, or changed.
+App Connection credentials are **minted once** by the App Connection Portal —
+they are not shown anywhere in the OctoEverywhere dashboard, and can't be
+re-queried. For a quick manual test you don't need to register an app; use the
+public **`devtest`** app id:
 
-1. Run the OE App Connection portal for your CC2 to obtain an `appApiToken` and
-   App Connection URL (see [`../docs/octoeverywhere-auth.md`](../docs/octoeverywhere-auth.md)).
-2. Run (Node 18+):
+> **Prerequisite:** your OctoEverywhere account must have **Supporter Perks** —
+> App Connections require it. Without it every call returns `605`.
 
-   ```bash
-   OE_URL="<appConnectionUrl>" OE_TOKEN="<appApiToken>" node spike/verify-oe.mjs
-   ```
+1. Open in a browser:
+   `https://octoeverywhere.com/appportal/v1/?appId=devtest`
+2. Log in, select your **CC2**, and authorize.
+3. The portal redirects to
+   `…/appportal/v1/complete?success=true&id=…&url=…&authBearerToken=…&appApiToken=…&authBasicHttpUser=…&authBasicHttpPassword=…`
+4. Copy these (URL-**decode** them) from the address bar:
+   - `url` → the substitute base URL (e.g. `https://app-xxxx.octoeverywhere.com`)
+   - `authBearerToken` → connection auth for the **printer/command API**
+   - `appApiToken` → *optional*, only for the OE **account info** API
 
-3. Confirm against [`../docs/spike-findings.md`](../docs/spike-findings.md):
-   - `status` → `JobStatus.CurrentPrint` with `Progress`, `TimeLeftSec` (ETA),
-     `FileName`, `Temps`, and a non-zero `Features` bitfield.
-   - `list-webcam` → `Webcams[]` with a stream/snapshot URL.
-   - HTTP `6xx` → an OctoEverywhere relay error; `404` → the command path is
-     joined onto the App Connection URL differently than assumed.
+> These are returned **once**. Copy immediately; if lost, redo the portal.
+> For a real (non-`devtest`) app you need your own `appId` — contact OE support.
 
-This validates the core assumption that the whole architecture rests on: a
-third-party App Connection token can drive the normalized command API for the
-CC2 remotely.
+## Running `verify-oe.mjs`
+
+Read-only: calls `ping`, `status`, `list-webcam`, and (if `OE_APITOKEN` is set)
+the account `info` API. Nothing is paused/cancelled/changed.
+
+```bash
+OE_URL="<url>" OE_BEARER="<authBearerToken>" OE_APITOKEN="<appApiToken>" \
+  node spike/verify-oe.mjs
+```
+
+Confirm against [`../docs/spike-findings.md`](../docs/spike-findings.md):
+- `status` → `JobStatus.CurrentPrint` with `Progress`, `TimeLeftSec` (ETA),
+  `FileName`, `Temps`, and a non-zero `Features` bitfield.
+- `list-webcam` → `Webcams[]` with a stream/snapshot URL.
+- A `6xx` code is an OctoEverywhere relay error (the script labels the common
+  ones — e.g. `601` printer offline, `605` not a Supporter, `606` bad creds).
+
+This validates the assumption the whole architecture rests on: a third-party App
+Connection can drive the normalized command API for the CC2 remotely.

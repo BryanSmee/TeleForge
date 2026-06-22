@@ -28,14 +28,17 @@
    adapters for the remote path** — OE already normalizes CC2-MQTT and
    U1-Moonraker into one API.
 
-3. **✅ App Connection auth = WebView portal → scoped `AppToken`, no secret.**
-   Unchanged from prior research and consistent with the source: requests carry
-   the `AppToken` header; relay-specific failures use custom `6xx` HTTP codes.
+3. **✅ App Connection auth = WebView portal → one-time creds, no secret.** The
+   portal mints a **substitute base URL** + a **Bearer token** (or basic auth)
+   used on *every* printer request; a *separate* `appApiToken` covers only OE's
+   account-info API. Relay failures use custom `600–613` codes. **Requires the
+   user to have OctoEverywhere Supporter Perks** (else `605`). Full detail in
+   [`octoeverywhere-auth.md`](./octoeverywhere-auth.md).
 
 ## The Plugin / Command API surface (verified in `octoeverywhere/commandhandler.py`)
 
-Base path: `https://<connection>/octoeverywhere-command-api/<command>`
-Auth (remote/App Connection): header `AppToken: <appApiToken>`
+Base path: `<connectionUrl>/octoeverywhere-command-api/<command>`
+Auth (remote/App Connection): `Authorization: Bearer <authBearerToken>` (or basic auth)
 Args: JSON body **or** GET query params (handler accepts either).
 
 | Command path | Purpose |
@@ -154,11 +157,13 @@ TeleForge ── AppToken ──▶│ OctoEverywhereClient             │─�
 
 The open-source plugin proves the API *exists and its shape*. The cloud-side
 **App Connection routing** is closed-source, so confirm against your own
-account using [`/spike/verify-oe.mjs`](../spike/verify-oe.mjs):
+account using [`/spike/verify-oe.mjs`](../spike/verify-oe.mjs) (get creds via the
+`devtest` portal — see [`/spike/README.md`](../spike/README.md)):
 
-- [ ] An App Connection `AppToken` can call `/octoeverywhere-command-api/status`
-      and `/list-webcam` through the App Connection URL, and returns the shapes
-      above for the CC2.
+- [ ] The connection **Bearer token** can call
+      `/octoeverywhere-command-api/status` and `/list-webcam` through the
+      substitute `url`, returning the shapes above for the CC2.
+- [ ] You have **Supporter Perks** on the account (otherwise `605`).
 - [ ] Exact base-path joining (is the command path appended directly to the
       returned App Connection URL?).
 - [ ] Whether continuous webcam streaming hits OE account relay limits

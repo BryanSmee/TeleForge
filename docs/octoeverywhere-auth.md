@@ -1,117 +1,151 @@
-# OctoEverywhere App Connections — Auth & Relay (research notes)
+# OctoEverywhere App Connections — Auth & Relay
 
-> Source: OctoEverywhere App Connection docs (links at bottom). These are
-> research notes to design against; field names and exact URLs **must be
-> re-verified** against the live API docs before implementation, as some pages
-> are JS-rendered and could not be fetched verbatim.
+> Verified against the OctoEverywhere API docs source
+> (`OctoEverywhereDocs/octoeverywhere-api-docs`). Supersedes the earlier draft,
+> which incorrectly used a single `AppToken` header for everything.
 
 ## TL;DR
 
-OctoEverywhere offers an **"App Connection"** integration for third-party apps.
-The flow is **OAuth-like but implemented as a hosted WebView portal redirect**.
-The user authorizes (with their OE login + 2FA), picks a printer, and your app
-receives a **scoped token**. After that, your app makes **normal HTTP and
-WebSocket requests through a relay URL** exactly as if it were on the printer's
-LAN — only the base URL and an auth header differ.
+OctoEverywhere's **"App Connection"** is an OAuth-style integration implemented
+as a **hosted WebView portal redirect**. The user authorizes (OE login), picks a
+printer, and the portal **mints a one-time set of credentials**. After that your
+app talks to the printer by hitting a **substitute hostname** exactly as if it
+were on the LAN — same paths, methods, body, headers, WebSockets, webcam.
 
-**There is no confidential client secret involved** → the whole flow runs
-client-side, no backend required.
+Two important truths discovered during the spike:
 
-## Prerequisite: register your app
+1. **There are two different credentials** (don't confuse them):
+   - **Connection auth** — a **Bearer token** *or* HTTP **basic auth** — required
+     on **every** request to the printer (HTTP, WebSocket, webcam). This is what
+     the command API uses.
+   - **`appApiToken`** — a *separate* token used **only** for OctoEverywhere's
+     own account API (`/api/appconnection/info`) via an `AppToken` header.
+2. **App Connections require the user to have OctoEverywhere Supporter Perks.**
+   Without it, all calls return `605`. (OE says it may become free later.)
 
-Your app needs an **`appId`** — a string assigned by OctoEverywhere that tags
-which App Connections were created by which app. Obtain this from OE before
-building the portal flow.
+No confidential client secret is involved → the flow runs fully client-side, no
+backend required.
+
+## Prerequisite: an `appId`
+
+The portal needs an **`appId`** assigned by OctoEverywhere (contact OE support).
+For testing you can use the public **`devtest`** id:
+`https://octoeverywhere.com/appportal/v1/?appId=devtest`.
 
 ## Authorization flow (portal)
 
 ```
 ┌─────────────┐                              ┌──────────────────────┐
-│ TeleForge   │                              │ OctoEverywhere Portal│
-│  (Expo app) │                              │  (hosted web page)   │
-└─────┬───────┘                              └──────────┬───────────┘
-      │ 1. Open in-app WebView →                        │
-      │    https://.../app-portal?appId=...             │
-      │      &returnUrl=teleforge://oe-callback         │
-      │      [&printerId=...]   (optional preselect)     │
-      │ ───────────────────────────────────────────────▶│
-      │                                                  │ 2. User logs in to OE
-      │                                                  │    (+ 2FA), grants access,
-      │                                                  │    selects a printer
-      │ 3. Portal redirects to returnUrl with results    │
-      │    teleforge://oe-callback?appApiToken=...       │
-      │      &appConnectionUrl=...&printerId=...          │
-      │ ◀───────────────────────────────────────────────│
-      │ 4. App intercepts the navigation, parses query   │
-      │    params, stores them in expo-secure-store      │
-      ▼                                                  │
-  OctoEverywhereTransport({ appConnectionUrl, appApiToken })
+│ TeleForge   │                              │ OctoEverywhere Portal │
+│  (Expo app) │                              │  (hosted web page)    │
+└─────┬───────┘                              └──────────┬────────────┘
+      │ 1. WebView → https://octoeverywhere.com/appportal/v1/         │
+      │      ?appId=...&returnUrl=teleforge://oe-cb[&printerId=...]    │
+      │ ────────────────────────────────────────────────────────────▶│
+      │                                       2. User logs in to OE,   │
+      │                                          (creates acct/printer │
+      │                                          /supporter if needed),│
+      │                                          authorizes + picks    │
+      │                                          the printer           │
+      │ 3. Redirect to returnUrl (default …/appportal/v1/complete)     │
+      │    ?success=true&id=…&url=…&authBearerToken=…&appApiToken=…    │
+      │      &authBasicHttpUser=…&authBasicHttpPassword=…              │
+      │ ◀────────────────────────────────────────────────────────────│
+      │ 4. App intercepts navigation, parses params, stores in        │
+      │    expo-secure-store                                           │
+      ▼
+  OctoEverywhereConnection({ baseUrl: url, bearer: authBearerToken })
 ```
 
-### Portal request parameters (to verify)
+### Portal request parameters (`GET /appportal/v1/`)
 
 | Param | Required | Meaning |
 |-------|----------|---------|
-| `appId` | yes | Your registered app identifier |
-| `returnUrl` | recommended | Custom completion URL (e.g. a `teleforge://` deep link). Falls back to a default completion URL if omitted |
-| `printerId` | optional | Preselect a specific printer (if the app already knows the OE Printer ID) |
+| `appId` | yes | Your assigned app id (`devtest` for testing) |
+| `returnUrl` | optional | URL-encoded completion URL (e.g. a `teleforge://` deep link). Default `…/appportal/v1/complete`. Result params are appended to it |
+| `printerId` | optional | Preselect a printer (the OE Printer ID; queryable locally from the plugin at `/api/plugin/octoeverywhere`) |
+| `appLogoUrl` | optional | URL-encoded logo, shown 100×100 in the portal UI |
+| `octoPrintApiKeyAppName` | optional | If present, OE also generates an OctoPrint API key (OctoPrint only; N/A for CC2/Bambu) |
 
-### What the portal returns (once only — store immediately)
+> `authType` is no longer needed — connections are always `enhanced`, returning
+> **both** a bearer token and basic-auth credentials; pick whichever you prefer.
 
-- **`appApiToken`** — the App API token, **scoped to one App Connection and one
-  printer**.
-- **App Connection URL** — the relay base URL used for all subsequent requests.
-- **credentials** — any additional returned auth values.
+### Completion params (returned **once** — store immediately)
 
-> ⚠️ These values are returned **only once**. Persist them in
-> `expo-secure-store` on receipt. Losing them means re-running the portal.
+| Param | Use |
+|-------|-----|
+| `success` | Did the flow succeed |
+| `id` | The App Connection Id (store it; identifies this connection) |
+| `url` | **Substitute base URL** for printer requests (e.g. `https://app-xxxx.octoeverywhere.com`) |
+| `authBearerToken` | **Connection auth** — `Authorization: Bearer …` on every request |
+| `authBasicHttpUser` / `authBasicHttpPassword` | Alternative connection auth (basic) |
+| `appApiToken` | For the OE **account info** API only (`AppToken` header) |
+| `printername` | User-assigned printer name (for display) |
+| `printerLastKnownLocalIp` | Optional — last known LAN IP (handy for local discovery) |
+| `octoPrintApiKey` | Optional — only if OctoPrint key generation was requested |
+
+> ⚠️ `authBearerToken`, the `auth*` values, and `appApiToken` are returned **only
+> once** and can't be re-queried. Persist in `expo-secure-store` on receipt.
 
 ### Multi-printer implication
 
-Because a token is scoped to **one printer**, supporting both the CC2 and the U1
-means running the portal **once per printer**, yielding **two
-`{appConnectionUrl, appApiToken}` pairs**. TeleForge stores a list of these,
-keyed by a local printer id.
+A connection grants access to **one printer**. Supporting the CC2 **and** the U1
+means running the portal **once per printer** → two `{id, url, authBearerToken}`
+sets. TeleForge stores a list, keyed by a local printer id.
 
-## Using the relay
+## Using the connection
 
-- Make requests against the **App Connection URL** as if it were the printer's
-  local address. The relay supports **all HTTP verbs, WebSockets**, and (for
-  Bambu only, not relevant here) an MQTT-over-WS proxy.
-- **Auth:** send the `appApiToken` as an **`AppToken` header**. Some POST APIs
-  also accept it in the JSON body.
-- This is what lets a single adapter target either LAN or OE: same protocol
-  calls, different base URL + the `AppToken` header injected by the transport.
+- Replace the printer's local address with the returned **`url`**; everything
+  else (path, method, body, headers, WebSockets, webcam) relays unchanged. Always
+  use `https`.
+- **Auth (required on every request, incl. WS/webcam):** `Authorization: Bearer
+  <authBearerToken>` **or** HTTP basic auth.
+- The normalized **command API** is therefore:
+  `GET <url>/octoeverywhere-command-api/status` + the Bearer header.
 
 ### Diagnostics & limits
 
-- **App Connection Info API** — call it when the relay won't connect to learn
-  why, and to read the account's current **limits** (webcam-streaming, file
-  upload/download). Relevant for continuous webcam viewing; LAN transport avoids
+- **App Connection Info API** — `GET <url>/api/appconnection/info` with the
+  `AppToken: <appApiToken>` header. Reports whether the connection is valid,
+  whether the printer is currently connected to OE, the printer's local IP, and
+  account **limits** (max file transfer size, webcam stream length, back-to-back
+  webcam limits). Useful before/while streaming the webcam; LAN transport avoids
   these limits.
 
-### Custom status codes
+### Custom relay status codes (`600`–`613`)
 
-The relay uses **custom HTTP status codes in the `6xx` range** to signal
-relay-specific conditions (e.g. printer offline/unreachable through the tunnel).
-The transport layer should map these to typed errors rather than treating them
-as generic HTTP failures. (Cross-check against OE's "Custom Error Codes" page.)
+Returned by the relay (and the info API) for connection problems — handle these
+distinctly from real printer HTTP codes:
+
+| Code | Meaning |
+|------|---------|
+| `600` | Server/plugin/unknown error (temporary) |
+| `601` | Printer not connected to OE (off/offline) |
+| `602` | OE→printer timed out |
+| `603` | App Connection not found |
+| `604` | App Connection revoked/expired |
+| `605` | Owner no longer an OE Supporter |
+| `606` | Invalid/missing connection credentials |
+| `607` / `608` | File download / upload size limit exceeded |
+| `609` | Webcam back-to-back limit exceeded |
+| `610` | Plugin update required |
 
 ## How this maps to TeleForge code
 
 - `packages/core/octoeverywhere/auth.ts` — build the portal URL; parse the
-  completion redirect.
-- `packages/core/octoeverywhere/appConnection.ts` — App Connection Info / limits.
-- `packages/core/transport/octoeverywhere.ts` — `OctoEverywhereTransport`:
-  prefixes `appConnectionUrl`, injects the `AppToken` header on HTTP and WS,
-  maps `6xx` codes to typed errors.
+  completion redirect into `{id, url, bearer, appApiToken, ...}`.
+- `packages/core/octoeverywhere/connection.ts` — `OctoEverywhereConnection`:
+  prefixes `url`, injects the **Bearer** (or basic) auth header on HTTP + WS,
+  maps `600–613` to typed errors.
+- `packages/core/octoeverywhere/appInfo.ts` — `/api/appconnection/info` via the
+  `AppToken` header (status + limits).
 - App layer: an `expo-web-browser` / `react-native-webview` screen that runs the
-  portal and writes the returned pair to `expo-secure-store`.
+  portal and writes the returned set to `expo-secure-store` (one per printer).
 
 ## Links
 
 - [App Connections overview](https://docs.octoeverywhere.com/app-connections/)
 - [App Connection Portal](https://docs.octoeverywhere.com/app-connections/portal/)
-- [App Connection APIs overview](https://docs.octoeverywhere.com/app-connections/apis/overview/)
-- [Printer API Remote Access](https://docs.octoeverywhere.com/printer-api-remote-access/)
-- [Custom Error Codes](https://docs.octoeverywhere.com/error-codes/)
+- [App Connection Usage + error codes](https://docs.octoeverywhere.com/app-connections/)
+- [Plugin / Command API](https://docs.octoeverywhere.com/plugin-api/)
+- Portal try-it (devtest): `https://octoeverywhere.com/appportal/v1/?appId=devtest`

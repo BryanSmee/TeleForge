@@ -51,7 +51,7 @@ An adapter is constructed *with* a transport, so any printer can be reached
 locally or remotely without the adapter knowing the difference:
 
 ```ts
-new CC2Adapter(new OctoEverywhereTransport({ appConnectionUrl, appApiToken }));
+new CC2Adapter(new OctoEverywhereTransport({ baseUrl, bearer }));   // bearer = authBearerToken
 new U1Adapter(new LocalTransport({ baseUrl: "http://192.168.1.50" }));
 ```
 
@@ -207,7 +207,8 @@ teleforge/
 │     │  └─ octoeverywhere.ts
 │     └─ octoeverywhere/
 │        ├─ auth.ts            # portal URL + redirect parsing
-│        └─ appConnection.ts   # info/limits, 6xx error mapping
+│        ├─ connection.ts      # Bearer/basic auth, 600–613 error mapping
+│        └─ appInfo.ts         # /api/appconnection/info (AppToken), limits
 ├─ docs/
 └─ package.json                # workspaces
 ```
@@ -230,6 +231,7 @@ only if latency demands it (forces a custom Dev Client build).
 
 See [`octoeverywhere-auth.md`](./octoeverywhere-auth.md). Summary: WebView opens
 the OE portal → user authorizes & picks a printer → portal redirects to a
-`teleforge://` deep link with `appApiToken` + `appConnectionUrl` → stored in
-`expo-secure-store` (one pair per printer) → used to build an
-`OctoEverywhereTransport`.
+`teleforge://` deep link carrying `url` (substitute base) + `authBearerToken`
+(connection auth) + `appApiToken` (account-info only) → stored in
+`expo-secure-store` (one set per printer) → used to build an
+`OctoEverywhereTransport` that injects the **Bearer** auth header.

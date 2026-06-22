@@ -9,6 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import type { WebcamSource } from '../core/model/printer';
 import { colors } from './ui';
 
@@ -40,6 +41,35 @@ export function WebcamView({
   onFullscreen?: () => void;
   onClose?: () => void;
 }) {
+  // In fullscreen, match the screen to the camera's aspect: landscape cameras
+  // (wider than tall, after any 90/270 rotation) lock to landscape. Restore
+  // portrait on exit. Measured from the snapshot; defaults to landscape if the
+  // size can't be read (e.g. MJPEG-only cameras).
+  useEffect(() => {
+    if (!fullscreen) return;
+    let active = true;
+    const lock = (landscape: boolean) => {
+      if (!active) return;
+      ScreenOrientation.lockAsync(
+        landscape
+          ? ScreenOrientation.OrientationLock.LANDSCAPE
+          : ScreenOrientation.OrientationLock.PORTRAIT_UP,
+      ).catch(() => {});
+    };
+    Image.getSize(
+      cam.snapshotUrl ?? cam.streamUrl,
+      (w, h) => {
+        const rotated = cam.rotation === 90 || cam.rotation === 270;
+        lock((rotated ? h : w) >= (rotated ? w : h));
+      },
+      () => lock(true),
+    );
+    return () => {
+      active = false;
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+    };
+  }, [fullscreen, cam]);
+
   const controls = (
     <>
       {onFullscreen && (

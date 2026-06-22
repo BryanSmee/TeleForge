@@ -59,7 +59,6 @@ export default function PrinterDashboardScreen() {
       {cam && !fullscreen && (
         <WebcamView
           cam={cam}
-          active={state?.isActive ?? false}
           style={styles.webcamPreview}
           onFullscreen={() => setFullscreen(true)}
         />
@@ -75,7 +74,7 @@ export default function PrinterDashboardScreen() {
           {cam && (
             <WebcamView
               cam={cam}
-              active={state?.isActive ?? false}
+              fullscreen
               style={styles.fullscreenView}
               onClose={() => setFullscreen(false)}
             />

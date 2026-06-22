@@ -60,6 +60,8 @@ export interface WebcamSource {
   name: string;
   /** Remote MJPEG stream URL (via the OE relay), ready to render. */
   streamUrl: string;
+  /** Remote JPEG snapshot URL (via the OE relay), if the camera exposes one. */
+  snapshotUrl?: string;
   flipH: boolean;
   flipV: boolean;
   /** Degrees clockwise: 0 | 90 | 180 | 270. */

@@ -1,61 +1,153 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { WebcamSource } from '../core/model/printer';
-import { Button, colors } from './ui';
+import { colors } from './ui';
 
-// OctoEverywhere caps a relayed webcam stream (~2 min) then back-to-back limits
-// it (607/609). Stream for a window under the cap, then pause and let the user
-// resume — never auto-reconnect in a loop. See docs/spike-findings.md.
+// OctoEverywhere caps a relayed MJPEG stream (~2 min) then back-to-back limits it
+// (607/609). The MJPEG path streams for a window under the cap, then pauses for a
+// manual resume. The snapshot path polls single JPEGs and isn't subject to that.
 const STREAM_WINDOW_MS = 110_000;
-// A multipart MJPEG <img> may never fire onload, so assume live after this.
 const ASSUME_LIVE_MS = 2500;
 
-type Status = 'connecting' | 'live' | 'error';
+function transformStyle(cam: WebcamSource) {
+  return [
+    { rotate: `${cam.rotation}deg` },
+    { scaleX: cam.flipH ? -1 : 1 },
+    { scaleY: cam.flipV ? -1 : 1 },
+  ];
+}
 
 export function WebcamView({
   cam,
-  active,
   style,
+  fullscreen = false,
   onFullscreen,
   onClose,
 }: {
   cam: WebcamSource;
-  /** Whether the printer is printing/paused — the CC2 only streams then. */
-  active: boolean;
   style?: ViewStyle;
+  /** Fullscreen polls snapshots faster for a smoother view. */
+  fullscreen?: boolean;
   onFullscreen?: () => void;
   onClose?: () => void;
 }) {
-  // When idle we don't auto-stream (it would just hang/redirect); user can force.
-  const [forced, setForced] = useState(false);
+  const controls = (
+    <>
+      {onFullscreen && (
+        <Pressable style={[styles.iconButton, styles.topRight]} onPress={onFullscreen} hitSlop={8}>
+          <Text style={styles.icon}>⤢</Text>
+        </Pressable>
+      )}
+      {onClose && (
+        <Pressable style={[styles.iconButton, styles.topRight]} onPress={onClose} hitSlop={8}>
+          <Text style={styles.icon}>✕</Text>
+        </Pressable>
+      )}
+    </>
+  );
+
+  return (
+    <View style={[styles.container, style]}>
+      {cam.snapshotUrl ? (
+        <SnapshotView cam={cam} intervalMs={fullscreen ? 400 : 1000} />
+      ) : (
+        <MjpegView cam={cam} />
+      )}
+      {controls}
+    </View>
+  );
+}
+
+/**
+ * Polls the camera's JPEG snapshot via a native <Image>. This is the robust
+ * default: no WebView, no MJPEG quirks, and not subject to the stream cap.
+ */
+function SnapshotView({ cam, intervalMs }: { cam: WebcamSource; intervalMs: number }) {
+  const [tick, setTick] = useState(0);
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (error) return;
+    const id = setInterval(() => setTick((t) => t + 1), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs, error]);
+
+  const uri = useMemo(() => {
+    const sep = cam.snapshotUrl!.includes('?') ? '&' : '?';
+    return `${cam.snapshotUrl}${sep}_t=${tick}`;
+  }, [cam.snapshotUrl, tick]);
+
+  if (error) {
+    return (
+      <Pressable
+        style={styles.overlayCenter}
+        onPress={() => {
+          setError(false);
+          setTick((t) => t + 1);
+        }}
+      >
+        <Text style={styles.title}>Webcam unavailable</Text>
+        <Text style={styles.muted}>Tap to retry</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <>
+      <Image
+        source={{ uri }}
+        style={[styles.media, { transform: transformStyle(cam) }]}
+        resizeMode="contain"
+        onLoad={() => setLoadedOnce(true)}
+        onError={() => setError(true)}
+        fadeDuration={0}
+      />
+      {!loadedOnce && (
+        <View style={styles.overlayCenter} pointerEvents="none">
+          <ActivityIndicator color={colors.accent} />
+        </View>
+      )}
+    </>
+  );
+}
+
+/**
+ * MJPEG fallback for cameras with no snapshot URL (e.g. the Elegoo CC2's
+ * QuickCam). Rendered inside an <img> so a relay redirect fails the image
+ * rather than navigating the whole view away.
+ */
+function MjpegView({ cam }: { cam: WebcamSource }) {
   const [streaming, setStreaming] = useState(true);
   const [nonce, setNonce] = useState(0);
-  const [status, setStatus] = useState<Status>('connecting');
+  const [status, setStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
   const liveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const shouldStream = (active || forced) && streaming;
-
-  // Auto-pause at the end of the streaming window.
   useEffect(() => {
-    if (!shouldStream) return;
+    if (!streaming) return;
     const timer = setTimeout(() => setStreaming(false), STREAM_WINDOW_MS);
     return () => clearTimeout(timer);
-  }, [shouldStream, nonce]);
+  }, [streaming, nonce]);
 
-  // Assume live after a grace period unless an error fires first. (Status resets
-  // to 'connecting' via restart() and the initial state, not synchronously here.)
   useEffect(() => {
-    if (!shouldStream) return;
+    if (!streaming) return;
     liveTimer.current = setTimeout(() => setStatus('live'), ASSUME_LIVE_MS);
     return () => clearTimeout(liveTimer.current);
-  }, [shouldStream, nonce]);
+  }, [streaming, nonce]);
 
   const origin = useMemo(() => originOf(cam.streamUrl), [cam.streamUrl]);
   const html = useMemo(() => streamHtml(cam), [cam]);
 
   const restart = () => {
-    setForced(true);
     setStreaming(true);
     setStatus('connecting');
     setNonce((n) => n + 1);
@@ -72,79 +164,42 @@ export function WebcamView({
     }
   };
 
-  const controls = (
-    <>
-      {onFullscreen && (
-        <Pressable style={[styles.iconButton, styles.topRight]} onPress={onFullscreen} hitSlop={8}>
-          <Text style={styles.icon}>⤢</Text>
-        </Pressable>
-      )}
-      {onClose && (
-        <Pressable style={[styles.iconButton, styles.topRight]} onPress={onClose} hitSlop={8}>
-          <Text style={styles.icon}>✕</Text>
-        </Pressable>
-      )}
-    </>
-  );
-
-  // Idle and not forced: explain why, offer to try anyway.
-  if (!active && !forced) {
+  if (!streaming) {
     return (
-      <View style={[styles.container, style]}>
-        <View style={styles.overlayCenter}>
-          <Text style={styles.title}>Webcam idle</Text>
-          <Text style={styles.muted}>The printer streams its camera while printing.</Text>
-          <View style={{ marginTop: 12 }}>
-            <Button label="Try anyway" onPress={restart} />
-          </View>
-        </View>
-        {controls}
-      </View>
+      <Pressable style={styles.overlayCenter} onPress={restart}>
+        <Text style={styles.title}>Stream paused</Text>
+        <Text style={styles.muted}>Tap to resume</Text>
+      </Pressable>
     );
   }
 
   return (
-    <View style={[styles.container, style]}>
-      {shouldStream ? (
-        // Render the MJPEG inside an <img>: unlike a top-level navigation, a
-        // redirect (e.g. to the OE homepage when no stream is available) makes
-        // the image fail rather than navigating the whole view away.
-        <WebView
-          key={nonce}
-          originWhitelist={['*']}
-          source={{ html, baseUrl: origin }}
-          style={styles.webview}
-          javaScriptEnabled
-          domStorageEnabled
-          mixedContentMode="always"
-          allowsInlineMediaPlayback
-          scrollEnabled={false}
-          onMessage={onMessage}
-          onError={() => setStatus('error')}
-        />
-      ) : (
-        <Pressable style={styles.overlayCenter} onPress={restart}>
-          <Text style={styles.title}>Stream paused</Text>
-          <Text style={styles.muted}>Tap to resume</Text>
-        </Pressable>
-      )}
-
-      {shouldStream && status === 'connecting' && (
+    <>
+      <WebView
+        key={nonce}
+        originWhitelist={['*']}
+        source={{ html, baseUrl: origin }}
+        style={styles.media}
+        javaScriptEnabled
+        domStorageEnabled
+        mixedContentMode="always"
+        allowsInlineMediaPlayback
+        scrollEnabled={false}
+        onMessage={onMessage}
+        onError={() => setStatus('error')}
+      />
+      {status === 'connecting' && (
         <View style={styles.overlayCenter} pointerEvents="none">
           <ActivityIndicator color={colors.accent} />
         </View>
       )}
-      {shouldStream && status === 'error' && (
+      {status === 'error' && (
         <Pressable style={styles.overlayCenter} onPress={restart}>
           <Text style={styles.title}>Stream unavailable</Text>
-          <Text style={styles.muted}>
-            {active ? 'Tap to retry' : 'The camera may only stream while printing — tap to retry'}
-          </Text>
+          <Text style={styles.muted}>Tap to retry</Text>
         </Pressable>
       )}
-
-      {controls}
-    </View>
+    </>
   );
 }
 
@@ -156,11 +211,6 @@ function originOf(url: string): string {
   }
 }
 
-/**
- * Minimal HTML rendering the MJPEG stream centered, with the camera transform
- * applied. `<img>` load/error are reported to RN via postMessage. Using an
- * `<img>` (not a top-level navigation) means a redirect can't hijack the view.
- */
 function streamHtml(cam: WebcamSource): string {
   const transform = `rotate(${cam.rotation}deg) scaleX(${cam.flipH ? -1 : 1}) scaleY(${cam.flipV ? -1 : 1})`;
   const post = (m: string) => `window.ReactNativeWebView&&window.ReactNativeWebView.postMessage('${m}')`;
@@ -173,7 +223,7 @@ function streamHtml(cam: WebcamSource): string {
 
 const styles = StyleSheet.create({
   container: { backgroundColor: '#000', overflow: 'hidden', position: 'relative' },
-  webview: { flex: 1, backgroundColor: '#000' },
+  media: { flex: 1, width: '100%', backgroundColor: '#000' },
   overlayCenter: {
     position: 'absolute',
     top: 0,

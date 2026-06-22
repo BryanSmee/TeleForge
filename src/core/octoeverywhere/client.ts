@@ -42,10 +42,12 @@ export class OctoEverywhereClient {
   constructor(opts: OctoEverywhereClientOptions) {
     this.base = opts.baseUrl.replace(/\/+$/, '');
     this.bearerToken = opts.bearerToken;
-    this.fetchImpl = opts.fetchImpl ?? globalThis.fetch;
-    if (typeof this.fetchImpl !== 'function') {
+    if (typeof (opts.fetchImpl ?? globalThis.fetch) !== 'function') {
       throw new Error('OctoEverywhereClient: no fetch implementation available');
     }
+    // Bind to globalThis: on web, window.fetch throws "Illegal invocation" if
+    // called detached from window. Harmless on native (RN fetch ignores `this`).
+    this.fetchImpl = opts.fetchImpl ?? globalThis.fetch.bind(globalThis);
   }
 
   /** Normalized current status. */

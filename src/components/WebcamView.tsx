@@ -73,39 +73,51 @@ export function WebcamView({
  */
 function SnapshotView({ cam, intervalMs }: { cam: WebcamSource; intervalMs: number }) {
   const [tick, setTick] = useState(0);
-  const [loadedOnce, setLoadedOnce] = useState(false);
+  // Double-buffer: `shownUri` stays visible underneath while the next frame
+  // loads on top, so swapping frames doesn't flash the black background.
+  const [shownUri, setShownUri] = useState<string>();
   const [errMsg, setErrMsg] = useState<string>();
 
-  // Keep polling through transient errors; only the pre-first-frame error is shown.
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), intervalMs);
     return () => clearInterval(id);
   }, [intervalMs]);
 
-  const uri = useMemo(() => {
+  const nextUri = useMemo(() => {
     const sep = cam.snapshotUrl!.includes('?') ? '&' : '?';
     return `${cam.snapshotUrl}${sep}_t=${tick}`;
   }, [cam.snapshotUrl, tick]);
 
+  const transform = transformStyle(cam);
+
   return (
     <>
+      {shownUri && (
+        <Image
+          source={{ uri: shownUri }}
+          style={[styles.media, { transform }]}
+          resizeMode="contain"
+          fadeDuration={0}
+        />
+      )}
       <Image
-        source={{ uri }}
-        style={[styles.media, { transform: transformStyle(cam) }]}
+        key={nextUri}
+        source={{ uri: nextUri }}
+        style={[styles.mediaOverlay, { transform }]}
         resizeMode="contain"
+        fadeDuration={0}
         onLoad={() => {
-          setLoadedOnce(true);
+          setShownUri(nextUri);
           setErrMsg(undefined);
         }}
         onError={(e) => setErrMsg(e.nativeEvent?.error || 'Failed to load snapshot')}
-        fadeDuration={0}
       />
-      {!loadedOnce && !errMsg && (
+      {!shownUri && !errMsg && (
         <View style={styles.overlayCenter} pointerEvents="none">
           <ActivityIndicator color={colors.accent} />
         </View>
       )}
-      {!loadedOnce && errMsg && (
+      {!shownUri && errMsg && (
         <Pressable
           style={styles.overlayCenter}
           onPress={() => {
@@ -227,6 +239,7 @@ function streamHtml(cam: WebcamSource): string {
 const styles = StyleSheet.create({
   container: { backgroundColor: '#000', overflow: 'hidden', position: 'relative' },
   media: { flex: 1, width: '100%', backgroundColor: '#000' },
+  mediaOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   overlayCenter: {
     position: 'absolute',
     top: 0,

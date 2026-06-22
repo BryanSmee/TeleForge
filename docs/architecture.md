@@ -24,26 +24,26 @@
 ┌───────────────┴────────────────────────────────────────────────┐
 │ packages/core  (pure TypeScript — reusable, no RN deps)          │
 │                                                                  │
-│  PrinterAdapter ──┬── CC2Adapter   (SDCP / JSON over WS)         │
-│   (normalize)     └── U1Adapter    (Moonraker JSON-RPC over WS)  │
+│  PrinterAdapter ──┬── CC2Adapter      (MQTT — proprietary)       │
+│   (normalize)     └── KlipperAdapter  (Moonraker JSON-RPC/WS)    │
 │        │                                                          │
 │        ▼ uses                                                     │
 │  Transport ───────┬── LocalTransport          (LAN ip)           │
-│   (where/how)     └── OctoEverywhereTransport  (relay + AppToken) │
+│   (where/how)     └── OctoEverywhereTransport  (relay + auth)    │
 │                                                                  │
 │  octoeverywhere/  auth (portal) · appConnection (info/limits)    │
 └──────────────────────────────────────────────────────────────────┘
                 │ HTTP / WebSocket
                 ▼
-   LAN (ws://printer/...)   or   OE relay (https://relay/... + AppToken)
+   LAN (ws://printer/...)   or   OE relay (https://relay/... + auth header)
                 │
                 ▼
-        CC2 (SDCP)   /   U1 (Klipper+Moonraker)
+        CC2 (MQTT)   /   Klipper printers incl. U1 (Moonraker)
 ```
 
 **Two orthogonal axes:**
 
-- **Adapter = *what* protocol** the printer speaks (SDCP vs Moonraker) →
+- **Adapter = *what* protocol** the printer speaks (CC2 MQTT vs Moonraker) →
   normalizes into one `PrinterState`.
 - **Transport = *where/how* we reach it** (LAN vs OE relay).
 
@@ -51,14 +51,16 @@ An adapter is constructed *with* a transport, so any printer can be reached
 locally or remotely without the adapter knowing the difference:
 
 ```ts
-new CC2Adapter(new OctoEverywhereTransport({ baseUrl, bearer }));   // bearer = authBearerToken
-new U1Adapter(new LocalTransport({ baseUrl: "http://192.168.1.50" }));
+new CC2Adapter(new OctoEverywhereTransport({ baseUrl, bearer }));       // bearer = authBearerToken
+new KlipperAdapter(new LocalTransport({ baseUrl: "http://192.168.1.50" })); // any Klipper printer
 ```
 
 ## 2. Normalized domain model
 
 ```ts
-type PrinterModel = "cc2" | "u1";
+// Keyed on platform family: standard Klipper/Moonraker printers (incl. the U1)
+// share "klipper"; proprietary platforms (CC2) get a dedicated id.
+type PrinterModel = "cc2" | "klipper";
 
 type ConnectionState =
   | "offline" | "connecting" | "idle" | "printing" | "paused" | "error";
@@ -154,20 +156,21 @@ interface PrinterAdapter {
 
 ### Adapter responsibilities
 
-- **CC2Adapter** — opens the SDCP WebSocket, sends discovery/attach, subscribes
-  to status messages, maps SDCP JSON → `PrinterState`. Sends SDCP command
-  messages for pause/resume/cancel/temps/fans. (Mind SDCP's known misspelled
-  field names, e.g. `CurrenCoord`.) Reference impls:
-  `elegoo-homeassistant`, `sdcp-centauri-carbon`.
-- **U1Adapter** — Moonraker: `printer.objects.subscribe` over the JSON-RPC
-  WebSocket for live `extruder`/`heater_bed`/`fan`/`print_stats`/`display_status`
-  objects; `printer.print.pause|resume|cancel`; gcode `M104/M140/M106` (or
-  Moonraker convenience endpoints) for setpoints.
+- **CC2Adapter** (proprietary) — connects over the CC2's **MQTT** protocol,
+  subscribes to status, maps it → `PrinterState`. Sends MQTT command methods
+  (pause 1021 / cancel 1022 / resume 1023 / set-temp 1028, per the spike).
+  Reference impl: `elegoo-homeassistant` (`CC2_PROTOCOL.md`). Only needed for
+  local mode and raw features (fans/chamber-set) the OE command API omits.
+- **KlipperAdapter** (all Klipper/Moonraker printers, incl. the U1) — Moonraker:
+  `printer.objects.subscribe` over the JSON-RPC WebSocket for live
+  `extruder`/`heater_bed`/`fan`/`print_stats`/`display_status`;
+  `printer.print.pause|resume|cancel`; gcode `M104/M140/M106` (or Moonraker
+  convenience endpoints) for setpoints. One adapter serves any Klipper printer.
 
 ## 4. Data flow (live)
 
 ```
-CC2 SDCP WS ──json──▶ CC2Adapter.map() ──PrinterState──▶ Zustand store[id]
+CC2 MQTT ──json──▶ CC2Adapter.map() ──PrinterState──▶ Zustand store[id]
                                                               │
                                               UI components subscribe
                                               (re-render on change)
@@ -199,8 +202,8 @@ teleforge/
 │     ├─ model/                # PrinterState & types
 │     ├─ printers/
 │     │  ├─ adapter.ts         # PrinterAdapter interface
-│     │  ├─ cc2/               # SDCP client + CC2Adapter
-│     │  └─ u1/                # Moonraker client + U1Adapter
+│     │  ├─ cc2/               # MQTT client + CC2Adapter (proprietary)
+│     │  └─ klipper/           # Moonraker client + KlipperAdapter (all Klipper printers, incl. U1)
 │     ├─ transport/
 │     │  ├─ transport.ts       # Transport interface + TransportError
 │     │  ├─ local.ts

@@ -3,8 +3,9 @@ import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { usePrintersStore } from '../../../src/store/printers';
 import { usePrinterStatus } from '../../../src/hooks/usePrinterStatus';
+import { useMoonrakerTools } from '../../../src/hooks/useMoonrakerTools';
 import { OctoEverywhereClient } from '../../../src/core/octoeverywhere';
-import type { PrinterState, TempChannel, WebcamSource } from '../../../src/core/model/printer';
+import type { PrinterState, WebcamSource } from '../../../src/core/model/printer';
 import { Button, Card, ProgressBar, colors } from '../../../src/components/ui';
 import { WebcamView } from '../../../src/components/WebcamView';
 import { formatClock, formatDuration } from '../../../src/lib/format';
@@ -19,6 +20,10 @@ export default function PrinterDashboardScreen() {
     () => (printer ? new OctoEverywhereClient({ baseUrl: printer.baseUrl }) : undefined),
     [printer],
   );
+
+  // The U1 has 4 nozzles; OE status only carries one. Pull the full set from
+  // Moonraker for Klipper printers and prefer it; otherwise use the OE hotend.
+  const tools = useMoonrakerTools(printer?.baseUrl, state?.model === 'klipper');
 
   // Webcams must come from list-webcam (status omits the stream/snapshot URLs).
   const [webcams, setWebcams] = useState<WebcamSource[]>([]);
@@ -63,6 +68,8 @@ export default function PrinterDashboardScreen() {
   };
 
   const cam = webcams[0];
+  const extruders = tools?.extruders ?? state?.extruders ?? [];
+  const chamber = tools?.chamber ?? state?.chamber;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -122,9 +129,17 @@ export default function PrinterDashboardScreen() {
       {state && (
         <Card style={{ gap: 12 }}>
           <Text style={styles.sectionTitle}>Temperatures</Text>
-          {state.temps.map((t) => (
-            <TempRow key={t.id} temp={t} />
+          {extruders.map((e) => (
+            <TempRow
+              key={`e${e.index}`}
+              label={extruders.length > 1 ? e.label : 'Nozzle'}
+              actual={e.actual}
+              target={e.target}
+              active={extruders.length > 1 ? e.active : undefined}
+            />
           ))}
+          {state.bed && <TempRow label="Bed" actual={state.bed.actual} target={state.bed.target} />}
+          {chamber && <TempRow label="Chamber" actual={chamber.actual} target={chamber.target} />}
         </Card>
       )}
 
@@ -178,13 +193,28 @@ function ConnectionBanner({ state, error }: { state?: PrinterState; error?: Erro
   );
 }
 
-function TempRow({ temp }: { temp: TempChannel }) {
+function TempRow({
+  label,
+  actual,
+  target,
+  active,
+}: {
+  label: string;
+  actual: number;
+  target: number;
+  active?: boolean;
+}) {
   return (
     <View style={styles.tempRow}>
-      <Text style={styles.tempLabel}>{temp.label}</Text>
+      <View style={styles.tempLabelRow}>
+        {active !== undefined && (
+          <View style={[styles.activeDot, { backgroundColor: active ? colors.ok : colors.border }]} />
+        )}
+        <Text style={styles.tempLabel}>{label}</Text>
+      </View>
       <Text style={styles.tempValue}>
-        {Math.round(temp.actual)}°
-        {temp.target > 0 ? <Text style={styles.muted}> → {Math.round(temp.target)}°</Text> : null}
+        {Math.round(actual)}°
+        {target > 0 ? <Text style={styles.muted}> → {Math.round(target)}°</Text> : null}
       </Text>
     </View>
   );
@@ -215,6 +245,8 @@ const styles = StyleSheet.create({
   statusDot: { width: 10, height: 10, borderRadius: 5 },
   statusText: { color: colors.text, fontSize: 16, fontWeight: '600', textTransform: 'capitalize', flex: 1 },
   tempRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  tempLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  activeDot: { width: 8, height: 8, borderRadius: 4 },
   tempLabel: { color: colors.text, fontSize: 15 },
   tempValue: { color: colors.text, fontSize: 15, fontWeight: '600' },
   controls: { flexDirection: 'row', gap: 12 },

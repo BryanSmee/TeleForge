@@ -29,17 +29,33 @@ export type ConnectionState =
   | 'complete'
   | 'error';
 
-export type TempChannelId = 'nozzle' | 'bed' | 'chamber';
-
-export interface TempChannel {
-  id: TempChannelId;
-  label: string;
+export interface TempReading {
   /** Current temperature, °C. */
   actual: number;
   /** Target temperature, °C (0 = heater off). */
   target: number;
-  /** Whether this channel's target can be changed through the current transport. */
+  /** Whether this reading's target can be changed through the current transport. */
   settable: boolean;
+}
+
+export interface Filament {
+  /** e.g. "PLA", "PETG". */
+  material?: string;
+  /** "#RRGGBB" if known. */
+  colorHex?: string;
+  /** Free-text name / spool label if known. */
+  name?: string;
+}
+
+/** A nozzle/tool. Printers may have several (the U1 has 4). */
+export interface Extruder extends TempReading {
+  /** 0-based tool index. */
+  index: number;
+  label: string;
+  /** True for the currently selected tool. */
+  active: boolean;
+  /** Loaded filament, when the printer reports it. */
+  filament?: Filament;
 }
 
 export interface Job {
@@ -90,7 +106,10 @@ export interface PrinterState {
   isActive: boolean;
   /** Present only when `isActive` (idle status fields are stale, see spike). */
   job?: Job;
-  temps: TempChannel[];
+  /** One or more nozzles. OE's status yields one; Moonraker can yield several. */
+  extruders: Extruder[];
+  bed?: TempReading;
+  chamber?: TempReading;
   capabilities: Capabilities;
   platformVersion?: string;
   /** When this snapshot was produced (epoch ms). */

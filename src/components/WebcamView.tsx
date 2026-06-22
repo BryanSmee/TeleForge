@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { WebcamSource } from '../core/model/printer';
 import { Button, colors } from './ui';
 
@@ -8,8 +8,8 @@ import { Button, colors } from './ui';
 // it (607/609). Stream for a window under the cap, then pause and let the user
 // resume — never auto-reconnect in a loop. See docs/spike-findings.md.
 const STREAM_WINDOW_MS = 110_000;
-// A streaming response never fires onLoadEnd, so drop the spinner after this.
-const ASSUME_LIVE_MS = 2000;
+// A multipart MJPEG <img> may never fire onload, so assume live after this.
+const ASSUME_LIVE_MS = 2500;
 
 type Status = 'connecting' | 'live' | 'error';
 
@@ -27,7 +27,7 @@ export function WebcamView({
   onFullscreen?: () => void;
   onClose?: () => void;
 }) {
-  // When idle we don't auto-stream (it would just hang); the user can force it.
+  // When idle we don't auto-stream (it would just hang/redirect); user can force.
   const [forced, setForced] = useState(false);
   const [streaming, setStreaming] = useState(true);
   const [nonce, setNonce] = useState(0);
@@ -43,14 +43,16 @@ export function WebcamView({
     return () => clearTimeout(timer);
   }, [shouldStream, nonce]);
 
-  // A multipart MJPEG response keeps loading forever, so assume it's live after
-  // a short grace period unless an error fires first. (Status is reset to
-  // 'connecting' by restart() and the initial state, not synchronously here.)
+  // Assume live after a grace period unless an error fires first. (Status resets
+  // to 'connecting' via restart() and the initial state, not synchronously here.)
   useEffect(() => {
     if (!shouldStream) return;
     liveTimer.current = setTimeout(() => setStatus('live'), ASSUME_LIVE_MS);
     return () => clearTimeout(liveTimer.current);
   }, [shouldStream, nonce]);
+
+  const origin = useMemo(() => originOf(cam.streamUrl), [cam.streamUrl]);
+  const html = useMemo(() => streamHtml(cam), [cam]);
 
   const restart = () => {
     setForced(true);
@@ -59,9 +61,15 @@ export function WebcamView({
     setNonce((n) => n + 1);
   };
 
-  const fail = () => {
-    clearTimeout(liveTimer.current);
-    setStatus('error');
+  const onMessage = (e: WebViewMessageEvent) => {
+    const msg = e.nativeEvent.data;
+    if (msg === 'load') {
+      clearTimeout(liveTimer.current);
+      setStatus('live');
+    } else if (msg === 'error') {
+      clearTimeout(liveTimer.current);
+      setStatus('error');
+    }
   };
 
   const controls = (
@@ -98,15 +106,21 @@ export function WebcamView({
   return (
     <View style={[styles.container, style]}>
       {shouldStream ? (
+        // Render the MJPEG inside an <img>: unlike a top-level navigation, a
+        // redirect (e.g. to the OE homepage when no stream is available) makes
+        // the image fail rather than navigating the whole view away.
         <WebView
           key={nonce}
           originWhitelist={['*']}
-          source={{ uri: cam.streamUrl }}
+          source={{ html, baseUrl: origin }}
           style={styles.webview}
+          javaScriptEnabled
+          domStorageEnabled
+          mixedContentMode="always"
           allowsInlineMediaPlayback
           scrollEnabled={false}
-          onError={fail}
-          onHttpError={fail}
+          onMessage={onMessage}
+          onError={() => setStatus('error')}
         />
       ) : (
         <Pressable style={styles.overlayCenter} onPress={restart}>
@@ -132,6 +146,29 @@ export function WebcamView({
       {controls}
     </View>
   );
+}
+
+function originOf(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Minimal HTML rendering the MJPEG stream centered, with the camera transform
+ * applied. `<img>` load/error are reported to RN via postMessage. Using an
+ * `<img>` (not a top-level navigation) means a redirect can't hijack the view.
+ */
+function streamHtml(cam: WebcamSource): string {
+  const transform = `rotate(${cam.rotation}deg) scaleX(${cam.flipH ? -1 : 1}) scaleY(${cam.flipV ? -1 : 1})`;
+  const post = (m: string) => `window.ReactNativeWebView&&window.ReactNativeWebView.postMessage('${m}')`;
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;background:#000;height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden">
+<img src="${cam.streamUrl}" onload="${post('load')}" onerror="${post('error')}"
+     style="max-width:100%;max-height:100%;transform:${transform}"/>
+</body></html>`;
 }
 
 const styles = StyleSheet.create({

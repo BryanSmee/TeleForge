@@ -88,9 +88,4 @@ describe('OctoEverywhereClient command shapes', () => {
     await clientWith(fetchImpl, 'tok123').pause();
     expect(seen?.Authorization).toBe('Bearer tok123');
   });
-
-  it('builds a webcam stream URL without a round-trip', () => {
-    const fetchImpl = jest.fn() as unknown as typeof fetch;
-    expect(clientWith(fetchImpl).webcamStreamUrl(2)).toBe(`${BASE}/oe-webcam-stream?index=2`);
-  });
 });

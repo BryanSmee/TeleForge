@@ -1,7 +1,7 @@
 import type { PrinterState, WebcamSource } from '../model/printer';
 import { OctoEverywhereError, isRelayErrorStatus } from './errors';
 import { mapStatus } from './mapStatus';
-import { mapWebcams, webcamStreamUrl } from './mapWebcams';
+import { mapWebcams } from './mapWebcams';
 import type { OeEnvelope, RawListWebcams, RawStatusResult } from './raw';
 
 const COMMAND_PREFIX = '/octoeverywhere-command-api';
@@ -58,11 +58,6 @@ export class OctoEverywhereClient {
   async listWebcams(): Promise<WebcamSource[]> {
     const result = await this.command<RawListWebcams>('list-webcam', 'GET');
     return mapWebcams(result, this.base);
-  }
-
-  /** Stream URL for a webcam index, without a round-trip. */
-  webcamStreamUrl(index = 0): string {
-    return webcamStreamUrl(this.base, index);
   }
 
   pause(): Promise<void> {

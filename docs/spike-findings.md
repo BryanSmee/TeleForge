@@ -42,10 +42,15 @@ MJPEG stream remotely. (Setting the `oe-snapshot` header on `/` does *not* work 
 that's a trusted service-set header; the correct interface is this fixed path.)
 
 How it fits the source: the CC2 has no `RelayWebcamStreamDetector` and serves its
-camera only through OE's **QuickCam** subsystem (companion pulls the CC2 MJPEG at
-`:8080`, enables the cam over MQTT, streams while printing). The OE **service/relay
-layer** exposes that QuickCam stream at the fixed, undocumented relay path
-**`/oe-webcam-stream`** — which is why a raw header didn't work but this path does.
+camera through OE's **QuickCam** subsystem (companion pulls the CC2 MJPEG at
+`:8080`, enables the cam over MQTT). The OE **service/relay layer** exposes that
+QuickCam stream at the fixed, undocumented relay path **`/oe-webcam-stream`** —
+which is why a raw header didn't work but this path does.
+
+> Note: `ShouldQuickCamStreamKeepRunning` returns `IsPrinting` in the source,
+> which earlier suggested the CC2 only streams while printing — **per Bryan that
+> is not the case**; the symptom we hit was a failing companion app, not a
+> print-state gate. So the app does **not** gate the webcam on print state.
 
 **Design implication (matches Bryan's instinct):** the stream *path* is an OE
 convention (same across printers), but the per-printer specifics should be

@@ -1,11 +1,11 @@
 import { describe, it, expect } from '@jest/globals';
-import { mapWebcams, webcamStreamUrl } from '../mapWebcams';
+import { mapWebcams, relayWebcamUrl } from '../mapWebcams';
 import type { RawListWebcams } from '../raw';
 
 const BASE = 'https://shared-test.octoeverywhere.com';
 
-// Mirrors the real list-webcam payload from the spike (LAN StreamUrl).
-const raw: RawListWebcams = {
+// Real CC2 list-webcam payload: jmpeg scheme, port 8080, no snapshot.
+const cc2: RawListWebcams = {
   Webcams: [
     {
       Name: 'Elegoo CC2 Cam',
@@ -20,30 +20,66 @@ const raw: RawListWebcams = {
   DefaultIndex: 0,
 };
 
-describe('mapWebcams', () => {
-  it('builds the remote relay stream URL, ignoring the LAN StreamUrl', () => {
-    const cams = mapWebcams(raw, BASE);
-    expect(cams).toHaveLength(1);
-    expect(cams[0].streamUrl).toBe(`${BASE}/oe-webcam-stream?index=0`);
-    expect(cams[0].streamUrl).not.toContain('192.168');
+// Real U1 (Klipper/camera-streamer) payload: relative paths.
+const u1: RawListWebcams = {
+  Webcams: [
+    {
+      Name: 'Case',
+      FlipH: false,
+      FlipV: false,
+      Rotation: 0,
+      Enabled: true,
+      SnapshotUrl: '/webcam/snapshot.jpg',
+      StreamUrl: '/webcam/stream.mjpg?fps=10',
+    },
+  ],
+  DefaultIndex: 0,
+};
+
+describe('relayWebcamUrl', () => {
+  it('relays a relative Moonraker path directly, stripping the rejected fps param', () => {
+    expect(relayWebcamUrl(BASE, '/webcam/stream.mjpg?fps=10')).toBe(`${BASE}/webcam/stream.mjpg`);
+    expect(relayWebcamUrl(`${BASE}/`, '/webcam/stream.mjpg')).toBe(`${BASE}/webcam/stream.mjpg`);
   });
 
-  it('carries name and display transforms through', () => {
-    const cam = mapWebcams(raw, BASE)[0];
-    expect(cam.name).toBe('Elegoo CC2 Cam');
+  it('relays the path of an absolute HTTP webcam on a standard port', () => {
+    expect(relayWebcamUrl(BASE, 'http://192.168.1.50/webcam/stream')).toBe(`${BASE}/webcam/stream`);
+  });
+
+  it('falls back to the QuickCam path for a custom scheme / non-standard port (CC2)', () => {
+    expect(relayWebcamUrl(BASE, 'jmpeg://192.168.1.240:8080/?action=stream')).toBe(
+      `${BASE}/oe-webcam-stream`,
+    );
+  });
+
+  it('falls back to the QuickCam path when StreamUrl is missing/unparseable', () => {
+    expect(relayWebcamUrl(BASE, null)).toBe(`${BASE}/oe-webcam-stream`);
+    expect(relayWebcamUrl(BASE, 'not a url')).toBe(`${BASE}/oe-webcam-stream`);
+  });
+});
+
+describe('mapWebcams', () => {
+  it('maps the U1 (relative paths) to relayed stream + snapshot URLs (fps stripped)', () => {
+    const cam = mapWebcams(u1, BASE)[0];
+    expect(cam.streamUrl).toBe(`${BASE}/webcam/stream.mjpg`);
+    expect(cam.snapshotUrl).toBe(`${BASE}/webcam/snapshot.jpg`);
+    expect(cam.name).toBe('Case');
+  });
+
+  it('maps the CC2 to the QuickCam path with no snapshot, never leaking the LAN address', () => {
+    const cam = mapWebcams(cc2, BASE)[0];
+    expect(cam.streamUrl).toBe(`${BASE}/oe-webcam-stream`);
+    expect(cam.snapshotUrl).toBeUndefined();
+    expect(cam.streamUrl).not.toContain('192.168');
     expect(cam.flipV).toBe(true);
     expect(cam.rotation).toBe(90);
   });
 
   it('skips disabled cameras', () => {
     const disabled: RawListWebcams = {
-      ...raw,
-      Webcams: [{ ...raw.Webcams[0], Enabled: false }],
+      ...u1,
+      Webcams: [{ ...u1.Webcams[0], Enabled: false }],
     };
     expect(mapWebcams(disabled, BASE)).toHaveLength(0);
-  });
-
-  it('trims a trailing slash from the base URL', () => {
-    expect(webcamStreamUrl(`${BASE}/`, 1)).toBe(`${BASE}/oe-webcam-stream?index=1`);
   });
 });

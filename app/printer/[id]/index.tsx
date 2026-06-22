@@ -1,24 +1,38 @@
-import { useMemo } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { usePrintersStore } from '../../src/store/printers';
-import { usePrinterStatus } from '../../src/hooks/usePrinterStatus';
-import { OctoEverywhereClient } from '../../src/core/octoeverywhere';
-import type { PrinterState, TempChannel } from '../../src/core/model/printer';
-import { Button, Card, ProgressBar, colors } from '../../src/components/ui';
-import { formatClock, formatDuration } from '../../src/lib/format';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Stack, useLocalSearchParams } from 'expo-router';
+import { usePrintersStore } from '../../../src/store/printers';
+import { usePrinterStatus } from '../../../src/hooks/usePrinterStatus';
+import { OctoEverywhereClient } from '../../../src/core/octoeverywhere';
+import type { PrinterState, TempChannel, WebcamSource } from '../../../src/core/model/printer';
+import { Button, Card, ProgressBar, colors } from '../../../src/components/ui';
+import { WebcamView } from '../../../src/components/WebcamView';
+import { formatClock, formatDuration } from '../../../src/lib/format';
 
 export default function PrinterDashboardScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
   const printer = usePrintersStore((s) => s.printers.find((p) => p.id === id));
-  const removePrinter = usePrintersStore((s) => s.removePrinter);
+  const [fullscreen, setFullscreen] = useState(false);
 
   const { state, error, refresh } = usePrinterStatus(printer?.baseUrl);
   const client = useMemo(
     () => (printer ? new OctoEverywhereClient({ baseUrl: printer.baseUrl }) : undefined),
     [printer],
   );
+
+  // Webcams must come from list-webcam (status omits the stream/snapshot URLs).
+  const [webcams, setWebcams] = useState<WebcamSource[]>([]);
+  useEffect(() => {
+    if (!client) return;
+    let cancelled = false;
+    client
+      .listWebcams()
+      .then((w) => !cancelled && setWebcams(w))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
 
   if (!printer) {
     return (
@@ -37,25 +51,50 @@ export default function PrinterDashboardScreen() {
     }
   };
 
-  const confirmRemove = () => {
-    Alert.alert('Remove printer', `Remove "${printer.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
+  const confirmAction = (title: string, confirmLabel: string, destructive: boolean, fn: () => Promise<void>) => {
+    Alert.alert(title, undefined, [
+      { text: 'Back', style: 'cancel' },
       {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          await removePrinter(printer.id);
-          router.back();
-        },
+        text: confirmLabel,
+        style: destructive ? 'destructive' : 'default',
+        onPress: () => runAction(fn),
       },
     ]);
   };
+
+  const cam = webcams[0];
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Stack.Screen options={{ title: printer.name }} />
 
       <ConnectionBanner state={state} error={error} />
+
+      {cam && !fullscreen && (
+        <WebcamView
+          cam={cam}
+          style={styles.webcamPreview}
+          onFullscreen={() => setFullscreen(true)}
+        />
+      )}
+
+      <Modal
+        visible={fullscreen}
+        animationType="fade"
+        supportedOrientations={['portrait', 'landscape']}
+        onRequestClose={() => setFullscreen(false)}
+      >
+        <View style={styles.fullscreen}>
+          {cam && (
+            <WebcamView
+              cam={cam}
+              fullscreen
+              style={styles.fullscreenView}
+              onClose={() => setFullscreen(false)}
+            />
+          )}
+        </View>
+      </Modal>
 
       {state?.isActive && state.job && (
         <Card style={{ gap: 10 }}>
@@ -92,18 +131,25 @@ export default function PrinterDashboardScreen() {
       {state && client && (
         <View style={styles.controls}>
           {state.capabilities.canPause && (
-            <Button label="Pause" onPress={() => runAction(() => client.pause())} />
+            <Button
+              label="Pause"
+              onPress={() => confirmAction('Pause print?', 'Pause', false, () => client.pause())}
+            />
           )}
           {state.capabilities.canResume && (
             <Button label="Resume" variant="primary" onPress={() => runAction(() => client.resume())} />
           )}
           {state.capabilities.canCancel && (
-            <Button label="Cancel" variant="danger" onPress={() => runAction(() => client.cancel())} />
+            <Button
+              label="Cancel"
+              variant="danger"
+              onPress={() =>
+                confirmAction('Cancel print?', 'Cancel print', true, () => client.cancel())
+              }
+            />
           )}
         </View>
       )}
-
-      <Button label="Remove printer" variant="danger" onPress={confirmRemove} />
     </ScrollView>
   );
 }
@@ -172,4 +218,7 @@ const styles = StyleSheet.create({
   tempLabel: { color: colors.text, fontSize: 15 },
   tempValue: { color: colors.text, fontSize: 15, fontWeight: '600' },
   controls: { flexDirection: 'row', gap: 12 },
+  webcamPreview: { height: 220, borderRadius: 12 },
+  fullscreen: { flex: 1, backgroundColor: '#000' },
+  fullscreenView: { flex: 1 },
 });

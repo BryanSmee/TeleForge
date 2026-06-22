@@ -1,12 +1,20 @@
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
-import { usePrintersStore } from '../src/store/printers';
+import { usePrintersStore, type PrinterConfig } from '../src/store/printers';
 import { Button, Card, colors } from '../src/components/ui';
 
 export default function PrinterListScreen() {
   const router = useRouter();
   const printers = usePrintersStore((s) => s.printers);
   const hydrated = usePrintersStore((s) => s.hydrated);
+  const removePrinter = usePrintersStore((s) => s.removePrinter);
+
+  const confirmRemove = (printer: PrinterConfig) => {
+    Alert.alert('Remove printer', `Remove "${printer.name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => removePrinter(printer.id) },
+    ]);
+  };
 
   return (
     <View style={styles.container}>
@@ -24,7 +32,7 @@ export default function PrinterListScreen() {
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
             <Link href={`/printer/${item.id}`} asChild>
-              <Pressable>
+              <Pressable onLongPress={() => confirmRemove(item)} delayLongPress={400}>
                 <Card style={styles.row}>
                   <View style={styles.dot} />
                   <View style={{ flex: 1 }}>
@@ -38,6 +46,9 @@ export default function PrinterListScreen() {
               </Pressable>
             </Link>
           )}
+          ListFooterComponent={
+            <Text style={styles.hint}>Long-press a printer to remove it.</Text>
+          }
         />
       )}
 
@@ -67,5 +78,6 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', gap: 8, marginTop: 24 },
   emptyTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
   emptyBody: { color: colors.muted, textAlign: 'center' },
+  hint: { color: colors.muted, fontSize: 12, textAlign: 'center', paddingTop: 8 },
   footer: { position: 'absolute', left: 16, right: 16, bottom: 24 },
 });

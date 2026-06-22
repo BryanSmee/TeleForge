@@ -6,7 +6,6 @@ import type {
   TempChannel,
 } from '../model/printer';
 import { OeFeature, type RawStatusResult } from './raw';
-import { mapWebcams } from './mapWebcams';
 
 function mapState(rawState: string): ConnectionState {
   switch (rawState.toLowerCase()) {
@@ -69,11 +68,11 @@ function buildCapabilities(features: number, connection: ConnectionState): Capab
  *
  * Key rule from the spike: `CurrentPrint` fields are stale/empty when the
  * printer is idle, so the `job` is only populated while printing or paused.
+ * Webcams are NOT taken from status (it omits the URLs) — fetch via listWebcams.
  *
- * @param baseUrl the Shared Connection base URL (used to build webcam stream URLs)
- * @param now     injectable clock for deterministic ETA in tests
+ * @param now injectable clock for deterministic ETA in tests
  */
-export function mapStatus(raw: RawStatusResult, baseUrl: string, now: number = Date.now()): PrinterState {
+export function mapStatus(raw: RawStatusResult, now: number = Date.now()): PrinterState {
   const connection = mapState(raw.JobStatus.State);
   const isActive = connection === 'printing' || connection === 'paused';
   const features = raw.Features ?? 0;
@@ -99,7 +98,6 @@ export function mapStatus(raw: RawStatusResult, baseUrl: string, now: number = D
     isActive,
     job,
     temps: buildTemps(raw, (features & OeFeature.TEMPERATURE_CONTROL) !== 0),
-    webcams: raw.ListWebcams ? mapWebcams(raw.ListWebcams, baseUrl) : [],
     capabilities: buildCapabilities(features, connection),
     platformVersion: raw.PlatformVersion,
     lastUpdated: now,

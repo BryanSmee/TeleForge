@@ -1,7 +1,7 @@
 import type { PrinterState, WebcamSource } from '../model/printer';
 import { OctoEverywhereError, isRelayErrorStatus } from './errors';
 import { mapStatus } from './mapStatus';
-import { mapWebcams, webcamStreamUrl } from './mapWebcams';
+import { mapWebcams } from './mapWebcams';
 import type { OeEnvelope, RawListWebcams, RawStatusResult } from './raw';
 
 const COMMAND_PREFIX = '/octoeverywhere-command-api';
@@ -42,27 +42,24 @@ export class OctoEverywhereClient {
   constructor(opts: OctoEverywhereClientOptions) {
     this.base = opts.baseUrl.replace(/\/+$/, '');
     this.bearerToken = opts.bearerToken;
-    this.fetchImpl = opts.fetchImpl ?? globalThis.fetch;
-    if (typeof this.fetchImpl !== 'function') {
+    if (typeof (opts.fetchImpl ?? globalThis.fetch) !== 'function') {
       throw new Error('OctoEverywhereClient: no fetch implementation available');
     }
+    // Bind to globalThis: on web, window.fetch throws "Illegal invocation" if
+    // called detached from window. Harmless on native (RN fetch ignores `this`).
+    this.fetchImpl = opts.fetchImpl ?? globalThis.fetch.bind(globalThis);
   }
 
   /** Normalized current status. */
   async getStatus(now: number = Date.now()): Promise<PrinterState> {
     const result = await this.command<RawStatusResult>('status', 'GET');
-    return mapStatus(result, this.base, now);
+    return mapStatus(result, now);
   }
 
   /** Normalized webcam list (with remote stream URLs). */
   async listWebcams(): Promise<WebcamSource[]> {
     const result = await this.command<RawListWebcams>('list-webcam', 'GET');
     return mapWebcams(result, this.base);
-  }
-
-  /** Stream URL for a webcam index, without a round-trip. */
-  webcamStreamUrl(index = 0): string {
-    return webcamStreamUrl(this.base, index);
   }
 
   pause(): Promise<void> {

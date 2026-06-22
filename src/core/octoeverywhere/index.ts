@@ -3,7 +3,7 @@ export type { OctoEverywhereClientOptions, SetTempArgs } from './client';
 export { OctoEverywhereError, isRelayErrorStatus } from './errors';
 export type { OeErrorKind } from './errors';
 export { mapStatus } from './mapStatus';
-export { mapWebcams, webcamStreamUrl } from './mapWebcams';
+export { mapWebcams, relayWebcamUrl } from './mapWebcams';
 export { OeFeature } from './raw';
 export type {
   OeEnvelope,

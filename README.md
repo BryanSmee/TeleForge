@@ -50,7 +50,16 @@ Build an installable Android APK via EAS (needs an Expo account + `eas login`):
 npm run build:android   # eas build -p android --profile preview
 ```
 
-Layout: `App.tsx` (entry screen), `src/` (app code — currently `src/lib`
-formatting helpers with tests under `__tests__`). This is an intentionally
-minimal scaffold; structure will follow [`docs/architecture.md`](./docs/architecture.md)
-as features land.
+Layout:
+
+- `App.tsx` — entry screen (placeholder).
+- `src/core/` — pure TypeScript core (no React Native deps; the future
+  `packages/core`). Currently the **OctoEverywhere client**: a normalized
+  command-API client (`octoeverywhere/client.ts`), the normalized printer model
+  (`model/printer.ts`), and raw→normalized mappers encoding the spike findings
+  (idle-gating, `/oe-webcam-stream` URL derivation). Unit-tested under
+  `__tests__`.
+- `src/lib/` — small UI-facing helpers (e.g. duration/progress formatting).
+
+UI (screens, state store, polling) is not wired up yet — that's the next step.
+Structure follows [`docs/architecture.md`](./docs/architecture.md) as features land.

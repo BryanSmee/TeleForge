@@ -22,6 +22,14 @@ export function formatDuration(totalSeconds: number): string {
   return `${s}s`;
 }
 
+/** Format an absolute epoch-ms time as a local `HH:MM` clock string. */
+export function formatClock(epochMs: number): string {
+  const d = new Date(epochMs);
+  const hh = d.getHours().toString().padStart(2, '0');
+  const mm = d.getMinutes().toString().padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
 /** Clamp a progress value to a 0–100 integer percentage. */
 export function formatProgress(progress: number): number {
   if (!Number.isFinite(progress)) {

@@ -3,9 +3,11 @@
     "name": "TeleForge",
     "slug": "teleforge",
     "version": "0.1.0",
+    "scheme": "teleforge",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
+    "plugins": ["expo-router"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.teleforge.app"
@@ -21,6 +23,7 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
+      "bundler": "metro",
       "favicon": "./assets/favicon.png"
     }
   }

@@ -1,17 +1,18 @@
-import { useMemo } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useMemo, useState } from 'react';
+import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { usePrintersStore } from '../../../src/store/printers';
 import { usePrinterStatus } from '../../../src/hooks/usePrinterStatus';
 import { OctoEverywhereClient } from '../../../src/core/octoeverywhere';
 import type { PrinterState, TempChannel } from '../../../src/core/model/printer';
 import { Button, Card, ProgressBar, colors } from '../../../src/components/ui';
+import { WebcamView } from '../../../src/components/WebcamView';
 import { formatClock, formatDuration } from '../../../src/lib/format';
 
 export default function PrinterDashboardScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
   const printer = usePrintersStore((s) => s.printers.find((p) => p.id === id));
+  const [fullscreen, setFullscreen] = useState(false);
 
   const { state, error, refresh } = usePrinterStatus(printer?.baseUrl);
   const client = useMemo(
@@ -47,13 +48,28 @@ export default function PrinterDashboardScreen() {
     ]);
   };
 
-  const hasWebcam = (state?.webcams.length ?? 0) > 0;
+  const cam = state?.webcams[0];
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Stack.Screen options={{ title: printer.name }} />
 
       <ConnectionBanner state={state} error={error} />
+
+      {cam && !fullscreen && (
+        <WebcamView cam={cam} style={styles.webcamPreview} onFullscreen={() => setFullscreen(true)} />
+      )}
+
+      <Modal
+        visible={fullscreen}
+        animationType="fade"
+        supportedOrientations={['portrait', 'landscape']}
+        onRequestClose={() => setFullscreen(false)}
+      >
+        <View style={styles.fullscreen}>
+          {cam && <WebcamView cam={cam} style={styles.fullscreenView} onClose={() => setFullscreen(false)} />}
+        </View>
+      </Modal>
 
       {state?.isActive && state.job && (
         <Card style={{ gap: 10 }}>
@@ -76,10 +92,6 @@ export default function PrinterDashboardScreen() {
             </Text>
           ) : null}
         </Card>
-      )}
-
-      {hasWebcam && (
-        <Button label="View webcam" onPress={() => router.push(`/printer/${printer.id}/webcam`)} />
       )}
 
       {state && (
@@ -181,4 +193,7 @@ const styles = StyleSheet.create({
   tempLabel: { color: colors.text, fontSize: 15 },
   tempValue: { color: colors.text, fontSize: 15, fontWeight: '600' },
   controls: { flexDirection: 'row', gap: 12 },
+  webcamPreview: { height: 220, borderRadius: 12 },
+  fullscreen: { flex: 1, backgroundColor: '#000' },
+  fullscreenView: { flex: 1 },
 });

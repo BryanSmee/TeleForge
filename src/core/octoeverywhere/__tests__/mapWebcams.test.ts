@@ -21,10 +21,10 @@ const raw: RawListWebcams = {
 };
 
 describe('mapWebcams', () => {
-  it('builds the remote relay stream URL, ignoring the LAN StreamUrl', () => {
+  it('builds the bare relay stream URL for the default camera, ignoring the LAN StreamUrl', () => {
     const cams = mapWebcams(raw, BASE);
     expect(cams).toHaveLength(1);
-    expect(cams[0].streamUrl).toBe(`${BASE}/oe-webcam-stream?index=0`);
+    expect(cams[0].streamUrl).toBe(`${BASE}/oe-webcam-stream`);
     expect(cams[0].streamUrl).not.toContain('192.168');
   });
 
@@ -43,7 +43,8 @@ describe('mapWebcams', () => {
     expect(mapWebcams(disabled, BASE)).toHaveLength(0);
   });
 
-  it('trims a trailing slash from the base URL', () => {
+  it('uses the bare path for the default camera and ?index= for others', () => {
+    expect(webcamStreamUrl(`${BASE}/`, 0)).toBe(`${BASE}/oe-webcam-stream`);
     expect(webcamStreamUrl(`${BASE}/`, 1)).toBe(`${BASE}/oe-webcam-stream?index=1`);
   });
 });

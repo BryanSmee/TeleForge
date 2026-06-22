@@ -23,7 +23,8 @@ export default function RootLayout() {
       >
         <Stack.Screen name="index" options={{ title: 'TeleForge' }} />
         <Stack.Screen name="add-printer" options={{ title: 'Add printer', presentation: 'modal' }} />
-        <Stack.Screen name="printer/[id]" options={{ title: 'Printer' }} />
+        <Stack.Screen name="printer/[id]/index" options={{ title: 'Printer' }} />
+        <Stack.Screen name="printer/[id]/webcam" options={{ title: 'Webcam' }} />
       </Stack>
     </>
   );

@@ -1,18 +1,17 @@
 import { useMemo } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { usePrintersStore } from '../../src/store/printers';
-import { usePrinterStatus } from '../../src/hooks/usePrinterStatus';
-import { OctoEverywhereClient } from '../../src/core/octoeverywhere';
-import type { PrinterState, TempChannel } from '../../src/core/model/printer';
-import { Button, Card, ProgressBar, colors } from '../../src/components/ui';
-import { formatClock, formatDuration } from '../../src/lib/format';
+import { usePrintersStore } from '../../../src/store/printers';
+import { usePrinterStatus } from '../../../src/hooks/usePrinterStatus';
+import { OctoEverywhereClient } from '../../../src/core/octoeverywhere';
+import type { PrinterState, TempChannel } from '../../../src/core/model/printer';
+import { Button, Card, ProgressBar, colors } from '../../../src/components/ui';
+import { formatClock, formatDuration } from '../../../src/lib/format';
 
 export default function PrinterDashboardScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const printer = usePrintersStore((s) => s.printers.find((p) => p.id === id));
-  const removePrinter = usePrintersStore((s) => s.removePrinter);
 
   const { state, error, refresh } = usePrinterStatus(printer?.baseUrl);
   const client = useMemo(
@@ -37,19 +36,18 @@ export default function PrinterDashboardScreen() {
     }
   };
 
-  const confirmRemove = () => {
-    Alert.alert('Remove printer', `Remove "${printer.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
+  const confirmAction = (title: string, confirmLabel: string, destructive: boolean, fn: () => Promise<void>) => {
+    Alert.alert(title, undefined, [
+      { text: 'Back', style: 'cancel' },
       {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          await removePrinter(printer.id);
-          router.back();
-        },
+        text: confirmLabel,
+        style: destructive ? 'destructive' : 'default',
+        onPress: () => runAction(fn),
       },
     ]);
   };
+
+  const hasWebcam = (state?.webcams.length ?? 0) > 0;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -80,6 +78,10 @@ export default function PrinterDashboardScreen() {
         </Card>
       )}
 
+      {hasWebcam && (
+        <Button label="View webcam" onPress={() => router.push(`/printer/${printer.id}/webcam`)} />
+      )}
+
       {state && (
         <Card style={{ gap: 12 }}>
           <Text style={styles.sectionTitle}>Temperatures</Text>
@@ -92,18 +94,25 @@ export default function PrinterDashboardScreen() {
       {state && client && (
         <View style={styles.controls}>
           {state.capabilities.canPause && (
-            <Button label="Pause" onPress={() => runAction(() => client.pause())} />
+            <Button
+              label="Pause"
+              onPress={() => confirmAction('Pause print?', 'Pause', false, () => client.pause())}
+            />
           )}
           {state.capabilities.canResume && (
             <Button label="Resume" variant="primary" onPress={() => runAction(() => client.resume())} />
           )}
           {state.capabilities.canCancel && (
-            <Button label="Cancel" variant="danger" onPress={() => runAction(() => client.cancel())} />
+            <Button
+              label="Cancel"
+              variant="danger"
+              onPress={() =>
+                confirmAction('Cancel print?', 'Cancel print', true, () => client.cancel())
+              }
+            />
           )}
         </View>
       )}
-
-      <Button label="Remove printer" variant="danger" onPress={confirmRemove} />
     </ScrollView>
   );
 }

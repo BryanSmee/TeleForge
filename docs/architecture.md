@@ -218,14 +218,22 @@ client (or tests in Node) can reuse the exact adapters and transports.
 
 ## 6. Webcam handling
 
-| Path | Source | Render |
-|------|--------|--------|
-| LAN, simple | CarbonicSidecar MJPEG (`:3000`) | `react-native-webview` (MJPEG) |
-| LAN, low latency | go2rtc WebRTC (`:1984`) | `react-native-webrtc` (needs Dev Client) |
-| Remote | OE webcam stream endpoint | WebView (subject to OE streaming limits) |
+**Remote (Shared Connection) — verified:** do **not** use the LAN `StreamUrl`
+from `list-webcam`. Make a relayed request to the connection host with OE webcam
+headers; OE proxies MJPEG (transforming WebRTC/camera-streamer server-side):
 
-Start with **MJPEG in a WebView** (keeps you on Expo Go, simplest); add WebRTC
-only if latency demands it (forces a custom Dev Client build).
+- Snapshot: GET `<connUrl>/` + header `oe-snapshot: 1` (+ `oe-webcam-index`).
+- Stream: GET `<connUrl>/` + header `oe-webcamstream: 1` → MJPEG. Apply the
+  `x-oe-webcam-transform` response header (flip/rotation). Mind OE limits (607/609).
+
+| Render approach | Notes |
+|------|--------|
+| MJPEG in `react-native-webview` | Simplest; stays on Expo Go. **Caveat:** a `<WebView>`/`<img>` can't set request headers, so either inject a small HTML page that fetches with headers, or use a fetch-based MJPEG reader / snapshot-polling. |
+| Snapshot polling | GET `oe-snapshot` every ~1s — trivial, low-risk MVP for a "live-ish" view |
+| LAN MJPEG/WebRTC (local mode) | Direct to `…:8080/?action=stream` or go2rtc; `react-native-webrtc` needs a Dev Client |
+
+Start with **snapshot polling or MJPEG** for the MVP; add WebRTC only for local
+low-latency later.
 
 ## 7. Add-printer / auth sequence
 

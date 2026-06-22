@@ -74,33 +74,18 @@ export function WebcamView({
 function SnapshotView({ cam, intervalMs }: { cam: WebcamSource; intervalMs: number }) {
   const [tick, setTick] = useState(0);
   const [loadedOnce, setLoadedOnce] = useState(false);
-  const [error, setError] = useState(false);
+  const [errMsg, setErrMsg] = useState<string>();
 
+  // Keep polling through transient errors; only the pre-first-frame error is shown.
   useEffect(() => {
-    if (error) return;
     const id = setInterval(() => setTick((t) => t + 1), intervalMs);
     return () => clearInterval(id);
-  }, [intervalMs, error]);
+  }, [intervalMs]);
 
   const uri = useMemo(() => {
     const sep = cam.snapshotUrl!.includes('?') ? '&' : '?';
     return `${cam.snapshotUrl}${sep}_t=${tick}`;
   }, [cam.snapshotUrl, tick]);
-
-  if (error) {
-    return (
-      <Pressable
-        style={styles.overlayCenter}
-        onPress={() => {
-          setError(false);
-          setTick((t) => t + 1);
-        }}
-      >
-        <Text style={styles.title}>Webcam unavailable</Text>
-        <Text style={styles.muted}>Tap to retry</Text>
-      </Pressable>
-    );
-  }
 
   return (
     <>
@@ -108,14 +93,32 @@ function SnapshotView({ cam, intervalMs }: { cam: WebcamSource; intervalMs: numb
         source={{ uri }}
         style={[styles.media, { transform: transformStyle(cam) }]}
         resizeMode="contain"
-        onLoad={() => setLoadedOnce(true)}
-        onError={() => setError(true)}
+        onLoad={() => {
+          setLoadedOnce(true);
+          setErrMsg(undefined);
+        }}
+        onError={(e) => setErrMsg(e.nativeEvent?.error || 'Failed to load snapshot')}
         fadeDuration={0}
       />
-      {!loadedOnce && (
+      {!loadedOnce && !errMsg && (
         <View style={styles.overlayCenter} pointerEvents="none">
           <ActivityIndicator color={colors.accent} />
         </View>
+      )}
+      {!loadedOnce && errMsg && (
+        <Pressable
+          style={styles.overlayCenter}
+          onPress={() => {
+            setErrMsg(undefined);
+            setTick((t) => t + 1);
+          }}
+        >
+          <Text style={styles.title}>Webcam unavailable</Text>
+          <Text style={styles.muted} numberOfLines={3}>
+            {errMsg}
+          </Text>
+          <Text style={[styles.muted, { marginTop: 8 }]}>Tap to retry</Text>
+        </Pressable>
       )}
     </>
   );

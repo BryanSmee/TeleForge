@@ -218,22 +218,20 @@ client (or tests in Node) can reuse the exact adapters and transports.
 
 ## 6. Webcam handling
 
-**Remote (Shared Connection) — verified:** do **not** use the LAN `StreamUrl`
-from `list-webcam`. Make a relayed request to the connection host with OE webcam
-headers; OE proxies MJPEG (transforming WebRTC/camera-streamer server-side):
+**Live finding (see [`spike-findings.md`](./spike-findings.md) Caveat 2):** the
+**CC2 webcam is not reachable through a plain Shared Connection** — it's served
+by OE's service-layer QuickCam, not the HTTP relay. Two viable paths:
 
-- Snapshot: GET `<connUrl>/` + header `oe-snapshot: 1` (+ `oe-webcam-index`).
-- Stream: GET `<connUrl>/` + header `oe-webcamstream: 1` → MJPEG. Apply the
-  `x-oe-webcam-transform` response header (flip/rotation). Mind OE limits (607/609).
+| Path | How | When |
+|------|-----|------|
+| **LAN MJPEG** | `react-native-webview` on `http://<cc2-ip>:8080/?action=stream` (enable cam via CC2 MQTT first) | v1, phone on same network |
+| **OE service webcam** | appApiToken + OE webcam streaming | with the deferred App Connection path |
 
-| Render approach | Notes |
-|------|--------|
-| MJPEG in `react-native-webview` | Simplest; stays on Expo Go. **Caveat:** a `<WebView>`/`<img>` can't set request headers, so either inject a small HTML page that fetches with headers, or use a fetch-based MJPEG reader / snapshot-polling. |
-| Snapshot polling | GET `oe-snapshot` every ~1s — trivial, low-risk MVP for a "live-ish" view |
-| LAN MJPEG/WebRTC (local mode) | Direct to `…:8080/?action=stream` or go2rtc; `react-native-webrtc` needs a Dev Client |
+The **U1** (Klipper) registers a relay webcam detector, so its stream *path*
+works through the relay — U1 remote webcam is easier than CC2.
 
-Start with **snapshot polling or MJPEG** for the MVP; add WebRTC only for local
-low-latency later.
+Decision pending (see open questions): v1 webcam = LAN-only, with remote CC2
+webcam folded into the deferred App path.
 
 ## 7. Add-printer / auth sequence
 

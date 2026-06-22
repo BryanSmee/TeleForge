@@ -52,14 +52,19 @@ npm run build:android   # eas build -p android --profile preview
 
 Layout:
 
-- `App.tsx` — entry screen (placeholder).
+- `app/` — screens via **expo-router** (file-based routing): `index` (printer
+  list), `add-printer` (modal), `printer/[id]` (live dashboard). `_layout.tsx`
+  is the Stack and hydrates the store on launch.
 - `src/core/` — pure TypeScript core (no React Native deps; the future
-  `packages/core`). Currently the **OctoEverywhere client**: a normalized
-  command-API client (`octoeverywhere/client.ts`), the normalized printer model
+  `packages/core`). The **OctoEverywhere client**: a normalized command-API
+  client (`octoeverywhere/client.ts`), the normalized printer model
   (`model/printer.ts`), and raw→normalized mappers encoding the spike findings
-  (idle-gating, `/oe-webcam-stream` URL derivation). Unit-tested under
-  `__tests__`.
-- `src/lib/` — small UI-facing helpers (e.g. duration/progress formatting).
+  (idle-gating, `/oe-webcam-stream` URL derivation). Unit-tested under `__tests__`.
+- `src/store/` — Zustand store of configured printers, persisted to the device
+  secure store (the Shared Connection URL is a secret).
+- `src/hooks/` — `usePrinterStatus` (non-overlapping status polling).
+- `src/components/` — small shared UI (`Button`, `Card`, `ProgressBar`).
+- `src/lib/` — pure formatting helpers (duration/progress/clock).
 
-UI (screens, state store, polling) is not wired up yet — that's the next step.
-Structure follows [`docs/architecture.md`](./docs/architecture.md) as features land.
+Not yet wired: webcam screen, temperature/fan controls, NativeWind styling —
+following [`docs/architecture.md`](./docs/architecture.md) as features land.

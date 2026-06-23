@@ -5,16 +5,23 @@ import { usePrintersStore } from '../../../src/store/printers';
 import { usePrinterStatus } from '../../../src/hooks/usePrinterStatus';
 import { useMoonrakerTools } from '../../../src/hooks/useMoonrakerTools';
 import { OctoEverywhereClient } from '../../../src/core/octoeverywhere';
+import { MoonrakerClient } from '../../../src/core/moonraker';
 import type { Filament, PrinterState, WebcamSource } from '../../../src/core/model/printer';
 import { Button, Card, ProgressBar, colors } from '../../../src/components/ui';
 import { WebcamView } from '../../../src/components/WebcamView';
+import { SetTempModal, type SetTempTarget } from '../../../src/components/SetTempModal';
 import { formatClock, formatDuration } from '../../../src/lib/format';
+
+type TempEdit =
+  | { kind: 'bed'; current: number }
+  | { kind: 'nozzle'; index: number; label: string; current: number };
 
 export default function PrinterDashboardScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const printer = usePrintersStore((s) => s.printers.find((p) => p.id === id));
   const [fullscreen, setFullscreen] = useState(false);
   const [camIndex, setCamIndex] = useState(0);
+  const [tempEdit, setTempEdit] = useState<TempEdit | null>(null);
 
   const { state, error, refresh } = usePrinterStatus(printer?.baseUrl);
   const client = useMemo(
@@ -25,7 +32,14 @@ export default function PrinterDashboardScreen() {
   // The U1 has 4 nozzles; OE status only carries one. Pull the full set from
   // Moonraker — OE reports a useless platform version ("1.0.0") for Moonraker,
   // so enable for any non-CC2 printer (the query no-ops if it isn't Moonraker).
-  const tools = useMoonrakerTools(printer?.baseUrl, !!state && state.model !== 'cc2');
+  const isKlipper = !!state && state.model !== 'cc2';
+  const tools = useMoonrakerTools(printer?.baseUrl, isKlipper);
+  // Klipper temp-setting goes straight to Moonraker (OE's set-temp ignores the
+  // tool number, so it can't target a specific nozzle).
+  const moonraker = useMemo(
+    () => (printer && isKlipper ? new MoonrakerClient({ baseUrl: printer.baseUrl }) : undefined),
+    [printer, isKlipper],
+  );
 
   // Webcams must come from list-webcam (status omits the stream/snapshot URLs).
   const [webcams, setWebcams] = useState<WebcamSource[]>([]);
@@ -69,9 +83,34 @@ export default function PrinterDashboardScreen() {
     ]);
   };
 
+  const applyTemp = (value: number) => {
+    if (!tempEdit) return;
+    const fn =
+      tempEdit.kind === 'bed'
+        ? () => (moonraker ? moonraker.setBedTemp(value) : client!.setTemp({ bedC: value }))
+        : () =>
+            moonraker
+              ? moonraker.setExtruderTemp(tempEdit.index, value)
+              : client!.setTemp({ toolC: value });
+    setTempEdit(null);
+    runAction(fn);
+  };
+
+  const tempTarget: SetTempTarget | null = !tempEdit
+    ? null
+    : tempEdit.kind === 'bed'
+      ? { label: 'Bed', current: tempEdit.current, presets: [50, 60, 70, 80, 100], max: isKlipper ? 120 : 75 }
+      : {
+          label: tempEdit.label,
+          current: tempEdit.current,
+          presets: [190, 200, 210, 220, 240, 250],
+          max: isKlipper ? 300 : 260,
+        };
+
   const cam = webcams[camIndex] ?? webcams[0];
   const extruders = tools?.extruders ?? state?.extruders ?? [];
   const chamber = tools?.chamber ?? state?.chamber;
+  const canSetTemp = state?.capabilities.canSetTemp ?? false;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -138,20 +177,41 @@ export default function PrinterDashboardScreen() {
       {state && (
         <Card style={{ gap: 12 }}>
           <Text style={styles.sectionTitle}>Temperatures</Text>
-          {extruders.map((e) => (
+          {extruders.map((e) => {
+            const label = extruders.length > 1 ? e.label : 'Nozzle';
+            return (
+              <TempRow
+                key={`e${e.index}`}
+                label={label}
+                actual={e.actual}
+                target={e.target}
+                active={extruders.length > 1 ? e.active : undefined}
+                filament={e.filament}
+                onEdit={
+                  canSetTemp && e.settable
+                    ? () => setTempEdit({ kind: 'nozzle', index: e.index, label, current: e.target })
+                    : undefined
+                }
+              />
+            );
+          })}
+          {state.bed && (
             <TempRow
-              key={`e${e.index}`}
-              label={extruders.length > 1 ? e.label : 'Nozzle'}
-              actual={e.actual}
-              target={e.target}
-              active={extruders.length > 1 ? e.active : undefined}
-              filament={e.filament}
+              label="Bed"
+              actual={state.bed.actual}
+              target={state.bed.target}
+              onEdit={
+                canSetTemp && state.bed.settable
+                  ? () => setTempEdit({ kind: 'bed', current: state.bed!.target })
+                  : undefined
+              }
             />
-          ))}
-          {state.bed && <TempRow label="Bed" actual={state.bed.actual} target={state.bed.target} />}
+          )}
           {chamber && <TempRow label="Chamber" actual={chamber.actual} target={chamber.target} />}
         </Card>
       )}
+
+      <SetTempModal target={tempTarget} onSet={applyTemp} onClose={() => setTempEdit(null)} />
 
       {state && client && (
         <View style={styles.controls}>
@@ -235,13 +295,21 @@ function TempRow({
   target,
   active,
   filament,
+  onEdit,
 }: {
   label: string;
   actual: number;
   target: number;
   active?: boolean;
   filament?: Filament;
+  onEdit?: () => void;
 }) {
+  const value = (
+    <Text style={styles.tempValue}>
+      {Math.round(actual)}°
+      {target > 0 ? <Text style={styles.muted}> → {Math.round(target)}°</Text> : null}
+    </Text>
+  );
   return (
     <View style={styles.tempRow}>
       <View style={styles.tempLabelRow}>
@@ -258,10 +326,14 @@ function TempRow({
           </View>
         )}
       </View>
-      <Text style={styles.tempValue}>
-        {Math.round(actual)}°
-        {target > 0 ? <Text style={styles.muted}> → {Math.round(target)}°</Text> : null}
-      </Text>
+      {onEdit ? (
+        <Pressable style={styles.tempEdit} onPress={onEdit} hitSlop={8}>
+          {value}
+          <Text style={styles.tempEditIcon}>✎</Text>
+        </Pressable>
+      ) : (
+        value
+      )}
     </View>
   );
 }
@@ -294,6 +366,8 @@ const styles = StyleSheet.create({
   tempLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   activeDot: { width: 8, height: 8, borderRadius: 4 },
   tempLabel: { color: colors.text, fontSize: 15 },
+  tempEdit: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  tempEditIcon: { color: colors.accent, fontSize: 14 },
   filamentTag: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   swatch: { width: 12, height: 12, borderRadius: 3, borderWidth: 1, borderColor: colors.border },
   tempValue: { color: colors.text, fontSize: 15, fontWeight: '600' },

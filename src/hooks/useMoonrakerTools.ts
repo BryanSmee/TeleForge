@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { MoonrakerClient, type MoonrakerTools } from '../core/moonraker';
 
+/** Last-known tools per base URL — see the note in usePrinterStatus. */
+const toolsCache = new Map<string, MoonrakerTools>();
+
 /**
  * Poll a Klipper printer's Moonraker API (through the relay) for multi-nozzle
  * data. Enable only for Klipper printers; on others the queries would 404.
@@ -12,7 +15,9 @@ export function useMoonrakerTools(
   enabled: boolean,
   intervalMs = 2500,
 ): MoonrakerTools | undefined {
-  const [tools, setTools] = useState<MoonrakerTools>();
+  const [tools, setTools] = useState<MoonrakerTools | undefined>(() =>
+    baseUrl ? toolsCache.get(baseUrl) : undefined,
+  );
 
   useEffect(() => {
     if (!baseUrl || !enabled) return;
@@ -23,6 +28,7 @@ export function useMoonrakerTools(
     const poll = async () => {
       try {
         const next = await client.getTools();
+        toolsCache.set(baseUrl, next);
         if (!cancelled) setTools(next);
       } catch {
         // Leave the last good value; just retry next tick.

@@ -2,7 +2,10 @@
 
 ## Bugs to fix
 
- - Webcam in printer details only update when the a job is in progress
+ - Re-verify: webcam preview updating when idle. The preview now uses the live
+   MJPEG stream (it previously only updated during a job); confirm it updates
+   when idle. If still static, the camera likely only produces frames while a
+   print is running (a printer-side limitation).
 
 ## Important
 
@@ -10,6 +13,9 @@ The list of things to implement (that I know) are missing:
  - Printer settings
     - Add LAN URL to bypass octoeverywhere
     - Add option to switch between snapshot and stream (for printer view and full screen separately)
+      — `WebcamView` already takes a `mode` ('stream' | 'snapshot') prop; needs a
+      persisted per-printer setting + UI. (Snapshot only works over LAN; through
+      the OE relay it trips the 609 back-to-back limit.)
  - Notifications
  - File explorer with the possibility to (re)start a job
  - Open forwarded UI (just open the printer URL in the webview)
@@ -42,7 +48,6 @@ The list of things to implement (that I know) are missing:
 
 ## Tech debt / infra
 
- - CI: GitHub Action running `bun run typecheck` + `lint` + `test` on PRs
  - Extract `packages/core` into a workspace (reusable by a future web client)
  - UI / hook tests (only pure logic is covered today)
  - `expo export` + bun: bun hoists `ws@7` where Metro's dev server needs `ws@8` (a temporary `ws` override works; `expo start` is unaffected)

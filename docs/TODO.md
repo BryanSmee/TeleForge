@@ -36,7 +36,6 @@ The list of things to implement (that I know) are missing:
  - gcode viewer
  - Spoolman integration
  - Motion controls (home / move axis / extrude)
- - Gadget AI failure-detection status (already returned in OE `status`)
  - Smoother fullscreen webcam via WebRTC (camera-streamer / go2rtc)
  - NativeWind styling pass
  - App Connection portal — OAuth-style login for a published, multi-user app (see octoeverywhere-auth.md)

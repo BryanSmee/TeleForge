@@ -49,15 +49,34 @@ export function relayWebcamUrl(baseUrl: string, rawStreamUrl: string | null): st
   return stripFps(relayPath(base, rawStreamUrl) ?? `${base}/oe-webcam-stream`);
 }
 
+/**
+ * An MJPEG stream (vs an interactive HTML viewer). Recognised by the OE QuickCam
+ * relay path or common MJPEG URL shapes; anything else (e.g. the Snapmaker "Gui"
+ * screen mirror at `/screen/`) is treated as a `page`.
+ */
+function isMjpegUrl(url: string): boolean {
+  const u = url.toLowerCase();
+  return (
+    u.includes('/oe-webcam-stream') ||
+    u.includes('.mjpg') ||
+    u.includes('.mjpeg') ||
+    u.includes('action=stream')
+  );
+}
+
 /** Map a raw `list-webcam` result into normalized, render-ready WebcamSources. */
 export function mapWebcams(raw: RawListWebcams, baseUrl: string): WebcamSource[] {
   const base = baseUrl.replace(/\/+$/, '');
-  return raw.Webcams.filter((w) => w.Enabled !== false).map((w) => ({
-    name: w.Name,
-    streamUrl: stripFps(relayPath(base, w.StreamUrl) ?? `${base}/oe-webcam-stream`),
-    snapshotUrl: relayPath(base, w.SnapshotUrl) ?? undefined,
-    flipH: w.FlipH,
-    flipV: w.FlipV,
-    rotation: w.Rotation,
-  }));
+  return raw.Webcams.filter((w) => w.Enabled !== false).map((w) => {
+    const streamUrl = stripFps(relayPath(base, w.StreamUrl) ?? `${base}/oe-webcam-stream`);
+    return {
+      name: w.Name,
+      kind: isMjpegUrl(streamUrl) ? 'mjpeg' : 'page',
+      streamUrl,
+      snapshotUrl: relayPath(base, w.SnapshotUrl) ?? undefined,
+      flipH: w.FlipH,
+      flipV: w.FlipV,
+      rotation: w.Rotation,
+    };
+  });
 }

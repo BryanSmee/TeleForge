@@ -34,6 +34,7 @@ interface PrintersState {
   /** Load persisted printers from secure storage. Call once on app start. */
   hydrate: () => Promise<void>;
   addPrinter: (input: Omit<PrinterConfig, 'id'>) => Promise<PrinterConfig>;
+  updatePrinter: (id: string, patch: Partial<Omit<PrinterConfig, 'id'>>) => Promise<void>;
   removePrinter: (id: string) => Promise<void>;
   getPrinter: (id: string) => PrinterConfig | undefined;
 }
@@ -76,6 +77,20 @@ export const usePrintersStore = create<PrintersState>((set, get) => ({
     set({ printers });
     await persist(printers);
     return printer;
+  },
+
+  updatePrinter: async (id, patch) => {
+    const printers = get().printers.map((p) =>
+      p.id === id
+        ? {
+            ...p,
+            ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+            ...(patch.baseUrl !== undefined ? { baseUrl: normalizeBaseUrl(patch.baseUrl) } : {}),
+          }
+        : p,
+    );
+    set({ printers });
+    await persist(printers);
   },
 
   removePrinter: async (id) => {

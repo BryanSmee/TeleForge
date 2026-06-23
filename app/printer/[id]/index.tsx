@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { usePrintersStore } from '../../../src/store/printers';
 import { usePrinterStatus } from '../../../src/hooks/usePrinterStatus';
 import { useMoonrakerTools } from '../../../src/hooks/useMoonrakerTools';
@@ -18,6 +18,7 @@ type TempEdit =
 
 export default function PrinterDashboardScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const printer = usePrintersStore((s) => s.printers.find((p) => p.id === id));
   const [fullscreen, setFullscreen] = useState(false);
   const [camIndex, setCamIndex] = useState(0);
@@ -143,7 +144,16 @@ export default function PrinterDashboardScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Stack.Screen options={{ title: printer.name }} />
+      <Stack.Screen
+        options={{
+          title: printer.name,
+          headerRight: () => (
+            <Pressable onPress={() => router.push(`/printer/${printer.id}/settings`)} hitSlop={8}>
+              <Text style={styles.headerButton}>⚙</Text>
+            </Pressable>
+          ),
+        }}
+      />
 
       <ConnectionBanner state={state} error={error} />
 
@@ -445,6 +455,7 @@ const styles = StyleSheet.create({
   camChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   camChipText: { color: colors.muted, fontSize: 13, fontWeight: '600' },
   camChipTextActive: { color: colors.text },
+  headerButton: { color: colors.text, fontSize: 20, paddingHorizontal: 4 },
   fullscreen: { flex: 1, backgroundColor: '#000' },
   fullscreenView: { flex: 1 },
 });

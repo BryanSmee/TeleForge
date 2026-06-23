@@ -58,6 +58,16 @@ describe('printers store', () => {
     expect(usePrintersStore.getState().hydrated).toBe(true);
   });
 
+  it('updates a printer, normalizing the patch, and persists', async () => {
+    const p = await usePrintersStore.getState().addPrinter({ name: 'Old', baseUrl: 'https://a.octoeverywhere.com' });
+    await usePrintersStore.getState().updatePrinter(p.id, { name: '  New  ', baseUrl: 'https://b.octoeverywhere.com/' });
+
+    const updated = usePrintersStore.getState().getPrinter(p.id)!;
+    expect(updated.name).toBe('New');
+    expect(updated.baseUrl).toBe('https://b.octoeverywhere.com');
+    expect(JSON.parse(mockMem.get(STORAGE_KEY)!)[0].name).toBe('New');
+  });
+
   it('removes a printer and persists the change', async () => {
     const a = await usePrintersStore.getState().addPrinter({ name: 'A', baseUrl: 'https://a.octoeverywhere.com' });
     await usePrintersStore.getState().addPrinter({ name: 'B', baseUrl: 'https://b.octoeverywhere.com' });

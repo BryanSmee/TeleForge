@@ -10,6 +10,7 @@
     "web": "expo start --web",
     "prebuild": "expo prebuild",
     "build:android": "eas build --platform android --profile preview",
+    "build:android:local": "bash scripts/build-android.sh",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test": "jest",

@@ -40,3 +40,7 @@ yarn-error.*
 
 # jest
 coverage/
+
+# local Android build artifacts + signing keystores
+/build-output
+/credentials

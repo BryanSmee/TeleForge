@@ -1,0 +1,6 @@
+# Keep shell scripts and the Dockerfile LF-only so they work inside the Linux
+# build container even when checked out on Windows.
+*.sh text eol=lf
+*.Dockerfile text eol=lf
+Dockerfile text eol=lf
+scripts/docker-entrypoint.sh text eol=lf

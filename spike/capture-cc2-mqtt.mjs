@@ -29,7 +29,7 @@ if (!base) {
 const wsBase = base.replace(/^http/, 'ws'); // http(s)://host → ws(s)://host
 const path = process.env.OE_WS_PATH || '/octoeverywhere-command-api/proxy/mqtt';
 const url = `${wsBase}${path}`;
-const secs = Number(process.env.OE_SECS || 20);
+const secs = Number(process.env.OE_SECS || 60);
 
 const headers = {};
 if (process.env.OE_BEARER) headers.Authorization = `Bearer ${process.env.OE_BEARER}`;
@@ -64,6 +64,11 @@ const client = mqtt.connect(url, {
 });
 
 let count = 0;
+// Dedupe by (topic, method): print one full sample of each kind, then just
+// count repeats. The combo/CFS object is likely a rarer message type that
+// would otherwise be buried under the frequent `method:6000` status pushes.
+const seen = new Map(); // key -> count
+const filamentHits = new Set();
 
 client.on('connect', () => {
   console.log('✅ connected — subscribing to "#"');
@@ -81,13 +86,20 @@ client.on('message', (topic, payload) => {
   } catch {
     /* binary/non-json */
   }
-  console.log(`\n──[${count}] topic: ${topic} (${payload.length} bytes)`);
-  if (json) {
-    const hits = scan(json, FILAMENT_RE);
-    console.log(JSON.stringify(json, null, 2).slice(0, 6000));
+  const method = json && typeof json === 'object' ? json.method : undefined;
+  const key = `${topic} | method=${method}`;
+  const first = !seen.has(key);
+  seen.set(key, (seen.get(key) || 0) + 1);
+
+  const hits = json ? scan(json, FILAMENT_RE) : [];
+  hits.forEach((h) => filamentHits.add(`${key} → ${h}`));
+
+  // Print a full sample the first time we see a (topic, method), or any time a
+  // message contains filament-ish keys.
+  if (first || hits.length) {
+    console.log(`\n──[${count}] ${key} (${payload.length} bytes)${first ? ' [new type]' : ''}`);
+    console.log((json ? JSON.stringify(json, null, 2) : text).slice(0, 8000));
     if (hits.length) console.log(`  ★ filament-ish keys: ${hits.join(', ')}`);
-  } else {
-    console.log(text.slice(0, 1000));
   }
 });
 
@@ -95,7 +107,13 @@ client.on('error', (e) => console.log('⚠️  error:', e.message));
 client.on('close', () => console.log('connection closed'));
 
 setTimeout(() => {
-  console.log(`\n--- captured ${count} message(s) in ${secs}s ---`);
+  console.log(`\n========== summary: ${count} message(s) in ${secs}s ==========`);
+  console.log('distinct (topic | method) → count:');
+  for (const [k, n] of [...seen.entries()].sort((a, b) => b[1] - a[1])) {
+    console.log(`  ${k}  ×${n}`);
+  }
+  console.log(`\nfilament-ish hits (${filamentHits.size}):`);
+  for (const h of filamentHits) console.log(`  ${h}`);
   client.end(true);
   process.exit(0);
 }, secs * 1000);

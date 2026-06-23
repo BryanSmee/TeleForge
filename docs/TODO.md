@@ -25,7 +25,7 @@ The list of things to implement (that I know) are missing:
 
 ## CC2-specific (needs CC2 on hand to build/verify)
 
- - CC2 combo extension filament (4 filaments → 1 extruder, over MQTT) — needs a CC2 MQTT status probe to find the per-slot data, then map onto the single extruder
+ - Verify the combo/CFS filament display against a real load/unload/swap (read path implemented via MQTT method 2005 → `canvas_info`)
  - Verify existing features on real CC2 hardware (status, pause/resume/cancel, temps)
 
 

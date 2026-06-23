@@ -4,9 +4,16 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { usePrintersStore } from '../../../src/store/printers';
 import { usePrinterStatus } from '../../../src/hooks/usePrinterStatus';
 import { useMoonrakerTools } from '../../../src/hooks/useMoonrakerTools';
+import { useFilamentSystem } from '../../../src/hooks/useFilamentSystem';
 import { OctoEverywhereClient } from '../../../src/core/octoeverywhere';
 import { MoonrakerClient } from '../../../src/core/moonraker';
-import type { Filament, PrinterState, WebcamSource } from '../../../src/core/model/printer';
+import type {
+  Filament,
+  FilamentSystem,
+  FilamentTray,
+  PrinterState,
+  WebcamSource,
+} from '../../../src/core/model/printer';
 import { Button, Card, ProgressBar, colors } from '../../../src/components/ui';
 import { WebcamView } from '../../../src/components/WebcamView';
 import { SetTempModal, type SetTempTarget } from '../../../src/components/SetTempModal';
@@ -39,6 +46,9 @@ export default function PrinterDashboardScreen() {
   // so enable for any non-CC2 printer (the query no-ops if it isn't Moonraker).
   const isKlipper = !!state && state.model !== 'cc2';
   const tools = useMoonrakerTools(printer?.baseUrl, isKlipper);
+  // The CC2's combo unit (4 trays → 1 extruder) isn't in OE's normalized status;
+  // pull it from the raw MQTT passthrough (CC2 only).
+  const cfs = useFilamentSystem(printer?.baseUrl, state?.model === 'cc2');
   // Klipper temp-setting goes straight to Moonraker (OE's set-temp ignores the
   // tool number, so it can't target a specific nozzle).
   const moonraker = useMemo(
@@ -138,9 +148,17 @@ export default function PrinterDashboardScreen() {
         };
 
   const cam = webcams[camIndex] ?? webcams[0];
-  const extruders = tools?.extruders ?? state?.extruders ?? [];
   const chamber = tools?.chamber ?? state?.chamber;
   const canSetTemp = state?.capabilities.canSetTemp ?? false;
+
+  // On the CC2 the loaded tray feeds the single extruder, so surface its
+  // filament on that nozzle's temp row.
+  const activeTray = cfs?.units.flatMap((u) => u.trays).find((t) => t.active);
+  const baseExtruders = tools?.extruders ?? state?.extruders ?? [];
+  const extruders =
+    activeTray && baseExtruders.length === 1
+      ? [{ ...baseExtruders[0], filament: activeTray.filament }]
+      : baseExtruders;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -259,6 +277,8 @@ export default function PrinterDashboardScreen() {
           {chamber && <TempRow label="Chamber" actual={chamber.actual} target={chamber.target} />}
         </Card>
       )}
+
+      {cfs && <FilamentSystemCard cfs={cfs} />}
 
       {state && client && state.capabilities.canSetLight && state.lights.length > 0 && (
         <Card style={{ gap: 12 }}>
@@ -408,6 +428,45 @@ function aiColor(score: number): string {
   return colors.ok;
 }
 
+function FilamentSystemCard({ cfs }: { cfs: FilamentSystem }) {
+  const trays = cfs.units.flatMap((u) => u.trays);
+  if (trays.length === 0) return null;
+  return (
+    <Card style={{ gap: 12 }}>
+      <View style={styles.cfsHeader}>
+        <Text style={styles.sectionTitle}>Filament</Text>
+        {cfs.autoRefill && <Text style={styles.muted}>Auto-refill</Text>}
+      </View>
+      <View style={styles.cfsGrid}>
+        {trays.map((t) => (
+          <FilamentSlot key={t.trayId} tray={t} />
+        ))}
+      </View>
+    </Card>
+  );
+}
+
+function FilamentSlot({ tray }: { tray: FilamentTray }) {
+  const { filament, active, present } = tray;
+  return (
+    <View style={[styles.cfsSlot, active && styles.cfsSlotActive, !present && styles.cfsSlotEmpty]}>
+      <View
+        style={[
+          styles.cfsSwatch,
+          { backgroundColor: present ? filament.colorHex || colors.border : 'transparent' },
+        ]}
+      />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.cfsSlotLabel}>Slot {tray.trayId + 1}</Text>
+        <Text style={styles.muted} numberOfLines={1}>
+          {present ? filament.material || 'Filament' : 'Empty'}
+        </Text>
+      </View>
+      {active && <Text style={styles.cfsActiveTag}>Active</Text>}
+    </View>
+  );
+}
+
 function prettyLightName(name: string): string {
   const cleaned = name.replace(/_/g, ' ').replace(/\bled\b/i, '').trim() || name;
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
@@ -464,4 +523,24 @@ const styles = StyleSheet.create({
   headerButton: { color: colors.text, fontSize: 18 },
   fullscreen: { flex: 1, backgroundColor: '#000' },
   fullscreenView: { flex: 1 },
+  cfsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cfsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  cfsSlot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    minWidth: '47%',
+    flexGrow: 1,
+  },
+  cfsSlotActive: { borderColor: colors.accent },
+  cfsSlotEmpty: { opacity: 0.5 },
+  cfsSwatch: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: colors.border },
+  cfsSlotLabel: { color: colors.text, fontSize: 14, fontWeight: '600' },
+  cfsActiveTag: { color: colors.accent, fontSize: 11, fontWeight: '700' },
 });

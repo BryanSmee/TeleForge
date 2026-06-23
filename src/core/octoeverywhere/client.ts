@@ -2,7 +2,13 @@ import type { PrinterState, WebcamSource } from '../model/printer';
 import { OctoEverywhereError, isRelayErrorStatus } from './errors';
 import { mapStatus } from './mapStatus';
 import { mapWebcams } from './mapWebcams';
-import type { OeEnvelope, RawListWebcams, RawStatusResult } from './raw';
+import type {
+  OeEnvelope,
+  RawCanvasResult,
+  RawListWebcams,
+  RawSendCommandResult,
+  RawStatusResult,
+} from './raw';
 
 const COMMAND_PREFIX = '/octoeverywhere-command-api';
 
@@ -65,6 +71,21 @@ export class OctoEverywhereClient {
   /** Turn a named light on/off (cross-platform via OE's set-light). */
   setLight(name: string, on: boolean): Promise<void> {
     return this.commandVoid('set-light', 'POST', { Name: name, On: on });
+  }
+
+  /**
+   * The CC2's combo / Centauri Filament System slots (MQTT method 2005). Sent
+   * through OE's raw `send-command` passthrough — a read-only query, so it's
+   * safe during a print. Returns `null` if the printer didn't reply or has no
+   * combo unit (e.g. on non-CC2 platforms, which don't speak this protocol).
+   */
+  async getCanvasInfo(): Promise<RawCanvasResult | null> {
+    const result = await this.command<RawSendCommandResult>('send-command', 'POST', {
+      TransportType: 'mqtt',
+      Request: { Method: 2005, Params: {} },
+    });
+    if (!result?.ResponseReceived || result.IsError) return null;
+    return (result.Response?.Payload?.result as RawCanvasResult) ?? null;
   }
 
   pause(): Promise<void> {

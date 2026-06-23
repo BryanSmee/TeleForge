@@ -70,6 +70,19 @@ describe('OctoEverywhereClient command shapes', () => {
     expect(JSON.parse(String(calls[0].init?.body))).toMatchObject({ BedC: 60, ToolC: 210 });
   });
 
+  it('POSTs set-light with Name/On', async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const fetchImpl = jest.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      return jsonResponse({ Status: 200, Result: null });
+    }) as unknown as typeof fetch;
+
+    await clientWith(fetchImpl).setLight('cavity_led', true);
+
+    expect(calls[0].url).toBe(`${BASE}/octoeverywhere-command-api/set-light`);
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({ Name: 'cavity_led', On: true });
+  });
+
   it('rejects set-temp above the safety limits without a network call', async () => {
     const fetchImpl = jest.fn(async () => jsonResponse({ Status: 200, Result: null })) as unknown as typeof fetch;
     const client = clientWith(fetchImpl);

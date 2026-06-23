@@ -21,7 +21,6 @@ The list of things to implement (that I know) are missing:
  - Open forwarded UI (just open the printer URL in the webview)
  - Language Support
  - Controls (the model + OE API already support these; UI is what's missing)
-    - Set temperature per nozzle + bed (client `setTemp` already takes a tool number)
     - Fan speed (U1: Moonraker `M106` / fan objects; CC2: raw MQTT)
     - Light toggle (U1 `cavity_led`, CC2 chamber light)
 

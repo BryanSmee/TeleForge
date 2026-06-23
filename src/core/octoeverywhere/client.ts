@@ -62,6 +62,11 @@ export class OctoEverywhereClient {
     return mapWebcams(result, this.base);
   }
 
+  /** Turn a named light on/off (cross-platform via OE's set-light). */
+  setLight(name: string, on: boolean): Promise<void> {
+    return this.commandVoid('set-light', 'POST', { Name: name, On: on });
+  }
+
   pause(): Promise<void> {
     return this.commandVoid('pause', 'POST');
   }

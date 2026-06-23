@@ -91,6 +91,10 @@ describe('mapStatus — idle (stale CurrentPrint must be ignored)', () => {
     expect(state.capabilities.canCancel).toBe(false);
   });
 
+  it('maps lights from status', () => {
+    expect(state.lights).toEqual([{ name: 'chamber', on: true }]);
+  });
+
   it('detects the CC2 model and records the timestamp', () => {
     expect(state.model).toBe('cc2');
     expect(state.lastUpdated).toBe(1_000_000);

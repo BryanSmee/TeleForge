@@ -148,9 +148,14 @@ export default function PrinterDashboardScreen() {
         options={{
           title: printer.name,
           headerRight: () => (
-            <Pressable onPress={() => router.push(`/printer/${printer.id}/settings`)} hitSlop={8}>
-              <Text style={styles.headerButton}>⚙</Text>
-            </Pressable>
+            <View style={styles.headerButtons}>
+              <Pressable onPress={() => router.push(`/printer/${printer.id}/ui`)} hitSlop={8}>
+                <Text style={styles.headerButton}>🎛️</Text>
+              </Pressable>
+              <Pressable onPress={() => router.push(`/printer/${printer.id}/settings`)} hitSlop={8}>
+                <Text style={styles.headerButton}>⚙</Text>
+              </Pressable>
+            </View>
           ),
         }}
       />
@@ -455,7 +460,8 @@ const styles = StyleSheet.create({
   camChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   camChipText: { color: colors.muted, fontSize: 13, fontWeight: '600' },
   camChipTextActive: { color: colors.text },
-  headerButton: { color: colors.text, fontSize: 20, paddingHorizontal: 4 },
+  headerButtons: { flexDirection: 'row', gap: 16 },
+  headerButton: { color: colors.text, fontSize: 18 },
   fullscreen: { flex: 1, backgroundColor: '#000' },
   fullscreenView: { flex: 1 },
 });

@@ -18,7 +18,6 @@ The list of things to implement (that I know) are missing:
       the OE relay it trips the 609 back-to-back limit.)
  - Notifications
  - File explorer with the possibility to (re)start a job
- - Open forwarded UI (just open the printer URL in the webview)
  - Language Support
  - Controls (the model + OE API already support these; UI is what's missing)
     - Fan speed (U1: Moonraker `M106` / fan objects; CC2: raw MQTT)

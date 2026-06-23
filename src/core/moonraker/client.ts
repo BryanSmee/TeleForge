@@ -82,4 +82,43 @@ export class MoonrakerClient {
     );
     return parseMoonrakerTools(objects, status.result.status);
   }
+
+  /** List printable g-code files, most recently modified first. */
+  async listFiles(): Promise<GcodeFile[]> {
+    const res = await this.getJson<{ result: RawGcodeFile[] }>('/server/files/list?root=gcodes');
+    return (res.result ?? [])
+      .map((f) => ({
+        path: f.path,
+        modifiedEpochSec: typeof f.modified === 'number' ? f.modified : 0,
+        sizeBytes: typeof f.size === 'number' ? f.size : 0,
+      }))
+      .sort((a, b) => b.modifiedEpochSec - a.modifiedEpochSec);
+  }
+
+  /** Start printing a file (path relative to the gcodes root). */
+  async startPrint(path: string): Promise<void> {
+    const url = `${this.base}/printer/print/start?filename=${encodeURIComponent(path)}`;
+    let res: Response;
+    try {
+      res = await this.fetchImpl(url, { method: 'POST' });
+    } catch (e) {
+      throw OctoEverywhereError.transport(e instanceof Error ? e.message : 'Network request failed');
+    }
+    if (!res.ok) throw OctoEverywhereError.transport(`HTTP ${res.status}`);
+  }
+}
+
+interface RawGcodeFile {
+  path: string;
+  modified?: number;
+  size?: number;
+}
+
+/** A printable g-code file on the printer. */
+export interface GcodeFile {
+  /** Path relative to the gcodes root, e.g. "benchy.gcode". */
+  path: string;
+  /** Last-modified time (epoch seconds). */
+  modifiedEpochSec: number;
+  sizeBytes: number;
 }

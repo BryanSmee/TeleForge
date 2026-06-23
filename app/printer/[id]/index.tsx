@@ -186,6 +186,11 @@ export default function PrinterDashboardScreen() {
           title: printer.name,
           headerRight: () => (
             <View style={styles.headerButtons}>
+              {isKlipper && (
+                <Pressable onPress={() => router.push(`/printer/${printer.id}/files`)} hitSlop={8}>
+                  <Text style={styles.headerButton}>📁</Text>
+                </Pressable>
+              )}
               <Pressable onPress={() => router.push(`/printer/${printer.id}/ui`)} hitSlop={8}>
                 <Text style={styles.headerButton}>🎛️</Text>
               </Pressable>

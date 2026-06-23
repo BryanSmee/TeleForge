@@ -200,6 +200,11 @@ export default function PrinterDashboardScreen() {
               Layer {state.job.currentLayer ?? 0} / {state.job.totalLayers}
             </Text>
           ) : null}
+          {state.aiFailureScore !== undefined && (
+            <Text style={[styles.muted, { color: aiColor(state.aiFailureScore) }]}>
+              AI failure check: {Math.round(state.aiFailureScore * 100)}%
+            </Text>
+          )}
         </Card>
       )}
 
@@ -380,6 +385,12 @@ function TempRow({
       )}
     </View>
   );
+}
+
+function aiColor(score: number): string {
+  if (score >= 0.6) return colors.danger;
+  if (score >= 0.3) return colors.accent;
+  return colors.ok;
 }
 
 function prettyLightName(name: string): string {

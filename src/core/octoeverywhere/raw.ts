@@ -66,7 +66,13 @@ export interface RawListWebcams {
 
 export interface RawStatusResult {
   JobStatus: RawJobStatus;
-  OctoEverywhereStatus?: unknown;
+  OctoEverywhereStatus?: {
+    /** OctoEverywhere's "Gadget" AI print-failure detection. */
+    Gadget?: {
+      /** Most recent failure score, 0..1 (higher = more likely a failure). */
+      LastScore?: number;
+    };
+  } | null;
   PlatformVersion?: string;
   /** Bitfield of Oe_Feature flags. */
   Features?: number;

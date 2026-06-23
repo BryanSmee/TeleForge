@@ -57,6 +57,7 @@ const printingStatus: RawStatusResult = {
   },
   PlatformVersion: 'Elegoo-CC2',
   Features: FEATURES,
+  OctoEverywhereStatus: { Gadget: { LastScore: 0.42 } },
 };
 
 describe('mapStatus — idle (stale CurrentPrint must be ignored)', () => {
@@ -119,6 +120,10 @@ describe('mapStatus — printing', () => {
   it('exposes layer info when present', () => {
     expect(state.job?.currentLayer).toBe(87);
     expect(state.job?.totalLayers).toBe(220);
+  });
+
+  it('surfaces the Gadget AI failure score while active', () => {
+    expect(state.aiFailureScore).toBe(0.42);
   });
 
   it('allows pause/cancel but not resume while printing', () => {

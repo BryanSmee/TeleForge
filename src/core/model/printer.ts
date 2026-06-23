@@ -127,6 +127,8 @@ export interface PrinterState {
   chamber?: TempReading;
   /** Controllable lights reported by the platform. */
   lights: Light[];
+  /** OctoEverywhere "Gadget" AI failure score, 0..1 (higher = more likely a failure). */
+  aiFailureScore?: number;
   capabilities: Capabilities;
   platformVersion?: string;
   /** When this snapshot was produced (epoch ms). */

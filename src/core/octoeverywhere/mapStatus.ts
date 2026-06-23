@@ -118,6 +118,7 @@ export function mapStatus(raw: RawStatusResult, now: number = Date.now()): Print
     bed: buildBed(raw, (features & OeFeature.TEMPERATURE_CONTROL) !== 0),
     chamber: buildChamber(raw),
     lights: (raw.JobStatus.Lights ?? []).map((l) => ({ name: l.Name, on: l.On })),
+    aiFailureScore: isActive ? raw.OctoEverywhereStatus?.Gadget?.LastScore : undefined,
     capabilities: buildCapabilities(features, connection),
     platformVersion: raw.PlatformVersion,
     lastUpdated: now,

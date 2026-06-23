@@ -14,11 +14,22 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import type { WebcamSource } from '../core/model/printer';
 import { colors } from './ui';
 
-// OctoEverywhere caps a relayed MJPEG stream (~2 min) then back-to-back limits it
-// (607/609). The MJPEG path streams for a window under the cap, then pauses for a
-// manual resume. The snapshot path polls single JPEGs and isn't subject to that.
+// OctoEverywhere caps a relayed MJPEG stream (~2 min); the stream path runs for a
+// window under the cap, then pauses for a manual resume. (Snapshot polling is NOT
+// a way around this — through the relay it trips the back-to-back limit, 609 — so
+// it's reserved for local LAN / the snapshot-stream toggle.)
 const STREAM_WINDOW_MS = 110_000;
 const ASSUME_LIVE_MS = 2500;
+
+/**
+ * Webcam rendering mode.
+ * - `stream`: one continuous MJPEG connection (default). Subject to OE's ~2-min
+ *   stream cap, handled with pause/resume.
+ * - `snapshot`: poll single JPEGs. Through the OE relay this trips the
+ *   back-to-back webcam limit (609), so it's only suitable over local LAN — kept
+ *   for the planned per-printer snapshot/stream toggle.
+ */
+export type WebcamMode = 'stream' | 'snapshot';
 
 function transformStyle(cam: WebcamSource) {
   return [
@@ -32,13 +43,15 @@ export function WebcamView({
   cam,
   style,
   fullscreen = false,
+  mode = 'stream',
   onFullscreen,
   onClose,
 }: {
   cam: WebcamSource;
   style?: ViewStyle;
-  /** Fullscreen polls snapshots faster for a smoother view. */
   fullscreen?: boolean;
+  /** Defaults to the MJPEG stream; snapshot is for local LAN / the future toggle. */
+  mode?: WebcamMode;
   onFullscreen?: () => void;
   onClose?: () => void;
 }) {
@@ -86,14 +99,13 @@ export function WebcamView({
     </>
   );
 
-  // Hybrid: the inline preview polls snapshots (light, no stream cap); fullscreen
-  // uses the live MJPEG stream (smooth). Cameras without a snapshot (the CC2) use
-  // the MJPEG stream in both.
-  const usePreviewSnapshot = !fullscreen && !!cam.snapshotUrl;
+  // Snapshot only over local LAN (it trips OE's 609 limit through the relay) and
+  // only for the inline preview; fullscreen always streams.
+  const useSnapshot = !fullscreen && mode === 'snapshot' && !!cam.snapshotUrl;
 
   return (
     <View style={[styles.container, style]}>
-      {usePreviewSnapshot ? <SnapshotView cam={cam} intervalMs={1000} /> : <MjpegView cam={cam} />}
+      {useSnapshot ? <SnapshotView cam={cam} intervalMs={1000} /> : <MjpegView cam={cam} />}
       {controls}
     </View>
   );

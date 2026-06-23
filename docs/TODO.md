@@ -10,7 +10,7 @@
 ## Important
 
 The list of things to implement (that I know) are missing:
- - Printer settings
+ - Printer settings (a settings screen exists: rename / edit URL / remove)
     - Add LAN URL to bypass octoeverywhere
     - Add option to switch between snapshot and stream (for printer view and full screen separately)
       — `WebcamView` already takes a `mode` ('stream' | 'snapshot') prop; needs a

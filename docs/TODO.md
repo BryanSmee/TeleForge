@@ -2,10 +2,10 @@
 
 ## Bugs to fix
 
- - ~~Webcam in printer details only update when a job is in progress~~ — the
-   preview now uses the live MJPEG stream (PR #8), which should update
-   continuously. Re-verify on device; if it's still static when idle, the camera
-   only produces frames during a print (a printer-side limitation).
+ - Re-verify: webcam preview updating when idle. The preview now uses the live
+   MJPEG stream (it previously only updated during a job); confirm it updates
+   when idle. If still static, the camera likely only produces frames while a
+   print is running (a printer-side limitation).
 
 ## Important
 
@@ -48,7 +48,6 @@ The list of things to implement (that I know) are missing:
 
 ## Tech debt / infra
 
- - ~~CI: GitHub Action running `bun run typecheck` + `lint` + `test` on PRs~~ ✅ (`.github/workflows/ci.yml`)
  - Extract `packages/core` into a workspace (reusable by a future web client)
  - UI / hook tests (only pure logic is covered today)
  - `expo export` + bun: bun hoists `ws@7` where Metro's dev server needs `ws@8` (a temporary `ws` override works; `expo start` is unaffected)

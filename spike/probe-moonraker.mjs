@@ -52,4 +52,15 @@ show('printer/objects/query (tools)', await get(`/printer/objects/query?${object
 // 4) Spoolman (if configured) — maps spools/filament to the printer.
 show('server/spoolman/spool_id', await get('/server/spoolman/spool_id'));
 
+// 5) Per-tool filament candidates. print_task_config / snapmaker objects may
+//    carry the loaded material/color per nozzle; filament sensors show presence.
+show(
+  'printer/objects/query (filament)',
+  await get(
+    '/printer/objects/query?print_task_config&filament_detect' +
+      '&filament_motion_sensor%20e0_filament&filament_motion_sensor%20e1_filament' +
+      '&filament_motion_sensor%20e2_filament&filament_motion_sensor%20e3_filament',
+  ),
+);
+
 console.log('\n---\nLooking for: per-extruder temperature/target, and anything naming the loaded filament/material/color per tool.');

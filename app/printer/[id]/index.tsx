@@ -150,7 +150,7 @@ export default function PrinterDashboardScreen() {
           headerRight: () => (
             <View style={styles.headerButtons}>
               <Pressable onPress={() => router.push(`/printer/${printer.id}/ui`)} hitSlop={8}>
-                <Text style={styles.headerButton}>🌐</Text>
+                <Text style={styles.headerButton}>🎛️</Text>
               </Pressable>
               <Pressable onPress={() => router.push(`/printer/${printer.id}/settings`)} hitSlop={8}>
                 <Text style={styles.headerButton}>⚙</Text>

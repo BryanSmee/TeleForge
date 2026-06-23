@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { usePrintersStore } from '../../../src/store/printers';
 import { usePrinterStatus } from '../../../src/hooks/usePrinterStatus';
@@ -14,6 +14,7 @@ export default function PrinterDashboardScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const printer = usePrintersStore((s) => s.printers.find((p) => p.id === id));
   const [fullscreen, setFullscreen] = useState(false);
+  const [camIndex, setCamIndex] = useState(0);
 
   const { state, error, refresh } = usePrinterStatus(printer?.baseUrl);
   const client = useMemo(
@@ -68,7 +69,7 @@ export default function PrinterDashboardScreen() {
     ]);
   };
 
-  const cam = webcams[0];
+  const cam = webcams[camIndex] ?? webcams[0];
   const extruders = tools?.extruders ?? state?.extruders ?? [];
   const chamber = tools?.chamber ?? state?.chamber;
 
@@ -79,11 +80,17 @@ export default function PrinterDashboardScreen() {
       <ConnectionBanner state={state} error={error} />
 
       {cam && !fullscreen && (
-        <WebcamView
-          cam={cam}
-          style={styles.webcamPreview}
-          onFullscreen={() => setFullscreen(true)}
-        />
+        <View style={{ gap: 8 }}>
+          <WebcamView
+            key={camIndex}
+            cam={cam}
+            style={styles.webcamPreview}
+            onFullscreen={() => setFullscreen(true)}
+          />
+          {webcams.length > 1 && (
+            <CameraSelector webcams={webcams} selected={camIndex} onSelect={setCamIndex} />
+          )}
+        </View>
       )}
 
       <Modal
@@ -95,6 +102,7 @@ export default function PrinterDashboardScreen() {
         <View style={styles.fullscreen}>
           {cam && (
             <WebcamView
+              key={camIndex}
               cam={cam}
               fullscreen
               style={styles.fullscreenView}
@@ -168,6 +176,32 @@ export default function PrinterDashboardScreen() {
         </View>
       )}
     </ScrollView>
+  );
+}
+
+function CameraSelector({
+  webcams,
+  selected,
+  onSelect,
+}: {
+  webcams: WebcamSource[];
+  selected: number;
+  onSelect: (index: number) => void;
+}) {
+  return (
+    <View style={styles.camSelector}>
+      {webcams.map((w, i) => (
+        <Pressable
+          key={`${w.name}-${i}`}
+          onPress={() => onSelect(i)}
+          style={[styles.camChip, i === selected && styles.camChipActive]}
+        >
+          <Text style={[styles.camChipText, i === selected && styles.camChipTextActive]} numberOfLines={1}>
+            {w.name || `Cam ${i + 1}`}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
   );
 }
 
@@ -265,6 +299,18 @@ const styles = StyleSheet.create({
   tempValue: { color: colors.text, fontSize: 15, fontWeight: '600' },
   controls: { flexDirection: 'row', gap: 12 },
   webcamPreview: { height: 220, borderRadius: 12 },
+  camSelector: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  camChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  camChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  camChipText: { color: colors.muted, fontSize: 13, fontWeight: '600' },
+  camChipTextActive: { color: colors.text },
   fullscreen: { flex: 1, backgroundColor: '#000' },
   fullscreenView: { flex: 1 },
 });

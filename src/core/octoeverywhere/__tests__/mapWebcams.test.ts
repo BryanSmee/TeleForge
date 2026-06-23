@@ -64,6 +64,7 @@ describe('mapWebcams', () => {
     expect(cam.streamUrl).toBe(`${BASE}/webcam/stream.mjpg`);
     expect(cam.snapshotUrl).toBe(`${BASE}/webcam/snapshot.jpg`);
     expect(cam.name).toBe('Case');
+    expect(cam.kind).toBe('mjpeg');
   });
 
   it('maps the CC2 to the QuickCam path with no snapshot, never leaking the LAN address', () => {
@@ -73,6 +74,27 @@ describe('mapWebcams', () => {
     expect(cam.streamUrl).not.toContain('192.168');
     expect(cam.flipV).toBe(true);
     expect(cam.rotation).toBe(90);
+    expect(cam.kind).toBe('mjpeg');
+  });
+
+  it('treats a non-MJPEG viewer (the U1 "Gui" screen mirror at /screen/) as a page', () => {
+    const gui: RawListWebcams = {
+      Webcams: [
+        {
+          Name: 'Gui',
+          FlipH: false,
+          FlipV: false,
+          Rotation: 0,
+          Enabled: true,
+          SnapshotUrl: '/screen/snapshot',
+          StreamUrl: '/screen/',
+        },
+      ],
+      DefaultIndex: 0,
+    };
+    const cam = mapWebcams(gui, BASE)[0];
+    expect(cam.kind).toBe('page');
+    expect(cam.streamUrl).toBe(`${BASE}/screen/`);
   });
 
   it('skips disabled cameras', () => {

@@ -60,7 +60,8 @@ export function WebcamView({
   // portrait on exit. Measured from the snapshot; defaults to landscape if the
   // size can't be read (e.g. MJPEG-only cameras).
   useEffect(() => {
-    if (!fullscreen) return;
+    // Page (HTML viewer) cams have no measurable aspect — leave orientation free.
+    if (!fullscreen || cam.kind === 'page') return;
     let active = true;
     const lock = (landscape: boolean) => {
       if (!active) return;
@@ -105,9 +106,32 @@ export function WebcamView({
 
   return (
     <View style={[styles.container, style]}>
-      {useSnapshot ? <SnapshotView cam={cam} intervalMs={1000} /> : <MjpegView cam={cam} />}
+      {cam.kind === 'page' ? (
+        <PageView cam={cam} />
+      ) : useSnapshot ? (
+        <SnapshotView cam={cam} intervalMs={1000} />
+      ) : (
+        <MjpegView cam={cam} />
+      )}
       {controls}
     </View>
+  );
+}
+
+/**
+ * Renders an interactive HTML viewer (e.g. the Snapmaker "Gui" screen mirror)
+ * as a full WebView page rather than an MJPEG image.
+ */
+function PageView({ cam }: { cam: WebcamSource }) {
+  return (
+    <WebView
+      originWhitelist={['*']}
+      source={{ uri: cam.streamUrl }}
+      style={styles.media}
+      javaScriptEnabled
+      domStorageEnabled
+      mixedContentMode="always"
+    />
   );
 }
 

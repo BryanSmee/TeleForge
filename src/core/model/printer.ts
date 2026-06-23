@@ -72,9 +72,18 @@ export interface Job {
   totalLayers?: number;
 }
 
+/**
+ * How to render a webcam:
+ * - `mjpeg`: an MJPEG stream, shown in an <img>.
+ * - `page`: an interactive HTML viewer (e.g. the Snapmaker "Gui" screen mirror
+ *   at `/screen/`), shown by loading the URL as a full WebView page.
+ */
+export type WebcamKind = 'mjpeg' | 'page';
+
 export interface WebcamSource {
   name: string;
-  /** Remote MJPEG stream URL (via the OE relay), ready to render. */
+  kind: WebcamKind;
+  /** Remote stream/viewer URL (via the OE relay), ready to render. */
   streamUrl: string;
   /** Remote JPEG snapshot URL (via the OE relay), if the camera exposes one. */
   snapshotUrl?: string;

@@ -24,13 +24,11 @@ The list of things to implement (that I know) are missing:
     - Set temperature per nozzle + bed (client `setTemp` already takes a tool number)
     - Fan speed (U1: Moonraker `M106` / fan objects; CC2: raw MQTT)
     - Light toggle (U1 `cavity_led`, CC2 chamber light)
- - Multiple webcams: camera selector (U1 also exposes a "Gui" screen-mirror cam; dashboard shows only the first today)
 
 
-## Blocked — no CC2 access right now
+## CC2-specific (needs CC2 on hand to build/verify)
 
  - CC2 combo extension filament (4 filaments → 1 extruder, over MQTT) — needs a CC2 MQTT status probe to find the per-slot data, then map onto the single extruder
- - Re-verify the CC2 webcam (OE QuickCam `/oe-webcam-stream`) once the companion app is stable
  - Verify existing features on real CC2 hardware (status, pause/resume/cancel, temps)
 
 

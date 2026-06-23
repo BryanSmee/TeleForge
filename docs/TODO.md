@@ -20,7 +20,7 @@ The list of things to implement (that I know) are missing:
  - File explorer with the possibility to (re)start a job
  - Language Support
  - Controls (the model + OE API already support these; UI is what's missing)
-    - Fan speed (U1: Moonraker `M106` / fan objects; CC2: raw MQTT)
+    - Fan speed on the CC2 (raw MQTT — the U1 part-cooling/generic fans are done via Moonraker)
 
 
 ## CC2-specific (needs CC2 on hand to build/verify)

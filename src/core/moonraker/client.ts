@@ -59,6 +59,19 @@ export class MoonrakerClient {
     return this.runGcode(`M140 S${t}`);
   }
 
+  /**
+   * Set a fan's speed (0–100%). The part-cooling fan (`fan`) takes `M106 S0-255`;
+   * a `fan_generic <name>` takes `SET_FAN_SPEED FAN="<name>" SPEED=0..1`.
+   */
+  setFanSpeed(key: string, pct: number): Promise<void> {
+    const p = clamp(pct, 0, 100);
+    if (key === 'fan') {
+      return this.runGcode(`M106 S${Math.round((p / 100) * 255)}`);
+    }
+    const name = key.replace(/^fan_generic\s+/, '');
+    return this.runGcode(`SET_FAN_SPEED FAN="${name}" SPEED=${(p / 100).toFixed(2)}`);
+  }
+
   /** Fetch the current tools (extruders + chamber) from Moonraker. */
   async getTools(): Promise<MoonrakerTools> {
     const list = await this.getJson<{ result: { objects: string[] } }>('/printer/objects/list');

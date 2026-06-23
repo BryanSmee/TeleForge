@@ -58,6 +58,40 @@ export interface Extruder extends TempReading {
   filament?: Filament;
 }
 
+/**
+ * One slot in a multi-material unit. On the CC2's combo / Centauri Filament
+ * System (CFS) the four trays feed a single extruder; one is active at a time.
+ */
+export interface FilamentTray {
+  /** Slot index within its unit. */
+  trayId: number;
+  filament: Filament;
+  brand?: string;
+  minTempC?: number;
+  maxTempC?: number;
+  /** Currently loaded/feeding the extruder. */
+  active: boolean;
+  /** A spool is present in this slot. */
+  present: boolean;
+}
+
+/** A multi-material unit (the CC2 has one; the model allows several). */
+export interface FilamentUnit {
+  unitId: number;
+  connected: boolean;
+  trays: FilamentTray[];
+}
+
+/**
+ * A multi-material filament system (CC2 combo / CFS). Several trays feed one
+ * extruder; `activeTrayId` is the one currently loaded (undefined = none).
+ */
+export interface FilamentSystem {
+  units: FilamentUnit[];
+  activeTrayId?: number;
+  autoRefill: boolean;
+}
+
 export interface Job {
   fileName: string;
   /** 0–100, integer. */

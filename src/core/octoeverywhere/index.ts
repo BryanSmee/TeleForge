@@ -4,6 +4,7 @@ export { OctoEverywhereError, isRelayErrorStatus } from './errors';
 export type { OeErrorKind } from './errors';
 export { mapStatus } from './mapStatus';
 export { mapWebcams, relayWebcamUrl } from './mapWebcams';
+export { mapCanvas } from './mapCanvas';
 export { OeFeature } from './raw';
 export type {
   OeEnvelope,
@@ -11,4 +12,7 @@ export type {
   RawJobStatus,
   RawListWebcams,
   RawWebcam,
+  RawCanvasResult,
+  RawCanvasInfo,
+  RawCanvasTray,
 } from './raw';

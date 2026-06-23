@@ -91,6 +91,43 @@ describe('OctoEverywhereClient command shapes', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  it('getCanvasInfo POSTs send-command with the mqtt method-2005 shape and unwraps the reply', async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const fetchImpl = jest.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      return jsonResponse({
+        Status: 200,
+        Result: {
+          TransportType: 'mqtt',
+          ResponseReceived: true,
+          IsError: false,
+          Response: { Payload: { id: 1, method: 2005, result: { canvas_info: { active_tray_id: 1 }, error_code: 0 } } },
+        },
+      });
+    }) as unknown as typeof fetch;
+
+    const out = await clientWith(fetchImpl).getCanvasInfo();
+
+    expect(calls[0].url).toBe(`${BASE}/octoeverywhere-command-api/send-command`);
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({
+      TransportType: 'mqtt',
+      Request: { Method: 2005, Params: {} },
+    });
+    expect(out).toEqual({ canvas_info: { active_tray_id: 1 }, error_code: 0 });
+  });
+
+  it('getCanvasInfo returns null when the printer did not reply or errored', async () => {
+    const noReply = jest.fn(async () =>
+      jsonResponse({ Status: 200, Result: { ResponseReceived: false, IsError: false } }),
+    ) as unknown as typeof fetch;
+    expect(await clientWith(noReply).getCanvasInfo()).toBeNull();
+
+    const errored = jest.fn(async () =>
+      jsonResponse({ Status: 200, Result: { ResponseReceived: true, IsError: true } }),
+    ) as unknown as typeof fetch;
+    expect(await clientWith(errored).getCanvasInfo()).toBeNull();
+  });
+
   it('sends the Bearer header when a token is configured', async () => {
     let seen: Record<string, string> | undefined;
     const fetchImpl = jest.fn(async (_url: string | URL | Request, init?: RequestInit) => {

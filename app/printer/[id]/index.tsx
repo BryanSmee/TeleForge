@@ -22,6 +22,10 @@ export default function PrinterDashboardScreen() {
   const [fullscreen, setFullscreen] = useState(false);
   const [camIndex, setCamIndex] = useState(0);
   const [tempEdit, setTempEdit] = useState<TempEdit | null>(null);
+  // Switches are controlled by polled state, which only refreshes every few
+  // seconds — so a tap wouldn't visibly flip until the next poll. Track the
+  // intended value locally to flip instantly, then let polling reconcile.
+  const [optimisticLights, setOptimisticLights] = useState<Record<string, boolean>>({});
 
   const { state, error, refresh } = usePrinterStatus(printer?.baseUrl);
   const client = useMemo(
@@ -70,6 +74,31 @@ export default function PrinterDashboardScreen() {
     } catch (e) {
       Alert.alert('Action failed', e instanceof Error ? e.message : 'Unknown error');
     }
+  };
+
+  const toggleLight = async (name: string, on: boolean) => {
+    setOptimisticLights((m) => ({ ...m, [name]: on })); // flip the switch now
+    try {
+      await client!.setLight(name, on);
+      refresh();
+    } catch (e) {
+      setOptimisticLights((m) => {
+        const next = { ...m };
+        delete next[name];
+        return next;
+      });
+      Alert.alert('Action failed', e instanceof Error ? e.message : 'Unknown error');
+      return;
+    }
+    // Drop the override once polling has had time to catch up, so an external
+    // change to the light isn't masked by a stale optimistic value.
+    setTimeout(() => {
+      setOptimisticLights((m) => {
+        const next = { ...m };
+        delete next[name];
+        return next;
+      });
+    }, 4000);
   };
 
   const confirmAction = (title: string, confirmLabel: string, destructive: boolean, fn: () => Promise<void>) => {
@@ -218,8 +247,8 @@ export default function PrinterDashboardScreen() {
             <View key={l.name} style={styles.tempRow}>
               <Text style={styles.tempLabel}>{prettyLightName(l.name)}</Text>
               <Switch
-                value={l.on}
-                onValueChange={(on) => runAction(() => client.setLight(l.name, on))}
+                value={optimisticLights[l.name] ?? l.on}
+                onValueChange={(on) => toggleLight(l.name, on)}
               />
             </View>
           ))}

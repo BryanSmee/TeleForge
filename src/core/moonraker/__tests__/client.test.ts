@@ -34,3 +34,27 @@ describe('MoonrakerClient gcode temp setters', () => {
     expect(calls[1].url).toContain(encodeURIComponent('M140 S0'));
   });
 });
+
+describe('MoonrakerClient.setFanSpeed', () => {
+  it('drives the part-cooling fan with M106 S0-255', async () => {
+    const { client, calls } = clientWithSpy();
+    await client.setFanSpeed('fan', 50);
+    expect(calls[0].url).toContain(encodeURIComponent('M106 S128')); // round(0.5*255)
+    await client.setFanSpeed('fan', 0);
+    expect(calls[1].url).toContain(encodeURIComponent('M106 S0'));
+    await client.setFanSpeed('fan', 100);
+    expect(calls[2].url).toContain(encodeURIComponent('M106 S255'));
+  });
+
+  it('drives a generic fan with SET_FAN_SPEED FAN="name" SPEED=0..1', async () => {
+    const { client, calls } = clientWithSpy();
+    await client.setFanSpeed('fan_generic cavity_fan', 75);
+    expect(calls[0].url).toContain(encodeURIComponent('SET_FAN_SPEED FAN="cavity_fan" SPEED=0.75'));
+  });
+
+  it('clamps out-of-range percentages', async () => {
+    const { client, calls } = clientWithSpy();
+    await client.setFanSpeed('fan', 150);
+    expect(calls[0].url).toContain(encodeURIComponent('M106 S255'));
+  });
+});

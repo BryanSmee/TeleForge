@@ -10,7 +10,9 @@ const objects = [
   'extruder3',
   'heater_bed',
   'temperature_sensor cavity',
+  'fan',
   'fan_generic cavity_fan',
+  'heater_fan hotend_fan',
   'toolhead',
   'print_stats',
 ];
@@ -22,6 +24,9 @@ const status: Record<string, any> = {
   extruder3: { temperature: 28, target: 0, extruder_index: 3, state: 'PARKED' },
   heater_bed: { temperature: 25, target: 0 },
   'temperature_sensor cavity': { temperature: 31 },
+  fan: { speed: 0.5, rpm: 1200 },
+  'fan_generic cavity_fan': { speed: 1 },
+  'heater_fan hotend_fan': { speed: 1 },
   toolhead: { extruder: 'extruder1' },
   // From the real U1 print_task_config.
   print_task_config: {
@@ -42,6 +47,8 @@ describe('toolObjectNames', () => {
       'toolhead',
       'temperature_sensor cavity',
       'print_task_config',
+      'fan',
+      'fan_generic cavity_fan',
     ]);
   });
 });
@@ -65,6 +72,13 @@ describe('parseMoonrakerTools (real U1 shape)', () => {
 
   it('reads the chamber from temperature_sensor cavity (read-only)', () => {
     expect(tools.chamber).toEqual({ actual: 31, target: 0, settable: false });
+  });
+
+  it('reads settable fans (part-cooling first), skipping automatic heater/controller fans', () => {
+    expect(tools.fans).toEqual([
+      { key: 'fan', label: 'Part cooling', speedPct: 50, settable: true },
+      { key: 'fan_generic cavity_fan', label: 'Cavity fan', speedPct: 100, settable: true },
+    ]);
   });
 
   it('attaches per-nozzle filament from print_task_config', () => {

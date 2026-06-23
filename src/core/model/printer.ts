@@ -148,6 +148,16 @@ export interface Light {
   on: boolean;
 }
 
+export interface Fan {
+  /** Platform object key, e.g. "fan" (part cooling) or "fan_generic aux". */
+  key: string;
+  label: string;
+  /** Current speed, 0–100. */
+  speedPct: number;
+  /** Whether the speed can be set through the current transport. */
+  settable: boolean;
+}
+
 export interface PrinterState {
   model: PrinterModel;
   connection: ConnectionState;

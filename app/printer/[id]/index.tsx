@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { usePrintersStore } from '../../../src/store/printers';
@@ -8,6 +8,7 @@ import { useFilamentSystem } from '../../../src/hooks/useFilamentSystem';
 import { OctoEverywhereClient } from '../../../src/core/octoeverywhere';
 import { MoonrakerClient } from '../../../src/core/moonraker';
 import type {
+  Fan,
   Filament,
   FilamentSystem,
   FilamentTray,
@@ -30,10 +31,12 @@ export default function PrinterDashboardScreen() {
   const [fullscreen, setFullscreen] = useState(false);
   const [camIndex, setCamIndex] = useState(0);
   const [tempEdit, setTempEdit] = useState<TempEdit | null>(null);
-  // Switches are controlled by polled state, which only refreshes every few
-  // seconds — so a tap wouldn't visibly flip until the next poll. Track the
-  // intended value locally to flip instantly, then let polling reconcile.
+  // Switches/sliders are controlled by polled state, which only refreshes every
+  // few seconds — so a tap wouldn't visibly change until the next poll. Track
+  // the intended value locally to update instantly, then let polling reconcile.
   const [optimisticLights, setOptimisticLights] = useState<Record<string, boolean>>({});
+  const [optimisticFans, setOptimisticFans] = useState<Record<string, number>>({});
+  const [optimisticTemps, setOptimisticTemps] = useState<Record<string, number>>({});
 
   const { state, error, refresh } = usePrinterStatus(printer?.baseUrl);
   const client = useMemo(
@@ -87,30 +90,37 @@ export default function PrinterDashboardScreen() {
     }
   };
 
-  const toggleLight = async (name: string, on: boolean) => {
-    setOptimisticLights((m) => ({ ...m, [name]: on })); // flip the switch now
-    try {
-      await client!.setLight(name, on);
-      refresh();
-    } catch (e) {
-      setOptimisticLights((m) => {
+  // Apply a control change with instant feedback: stash the intended value so
+  // the UI updates now, fire the request, then drop the override once polling
+  // has caught up (or revert it immediately on failure).
+  const runOptimistic = <V,>(
+    setMap: Dispatch<SetStateAction<Record<string, V>>>,
+    key: string,
+    value: V,
+    fn: () => Promise<void>,
+  ) => {
+    const clear = () =>
+      setMap((m) => {
         const next = { ...m };
-        delete next[name];
+        delete next[key];
         return next;
       });
-      Alert.alert('Action failed', e instanceof Error ? e.message : 'Unknown error');
-      return;
-    }
-    // Drop the override once polling has had time to catch up, so an external
-    // change to the light isn't masked by a stale optimistic value.
-    setTimeout(() => {
-      setOptimisticLights((m) => {
-        const next = { ...m };
-        delete next[name];
-        return next;
-      });
-    }, 4000);
+    setMap((m) => ({ ...m, [key]: value }));
+    (async () => {
+      try {
+        await fn();
+        refresh();
+      } catch (e) {
+        clear();
+        Alert.alert('Action failed', e instanceof Error ? e.message : 'Unknown error');
+        return;
+      }
+      setTimeout(clear, 4000);
+    })();
   };
+
+  const toggleLight = (name: string, on: boolean) =>
+    runOptimistic(setOptimisticLights, name, on, () => client!.setLight(name, on));
 
   const confirmAction = (title: string, confirmLabel: string, destructive: boolean, fn: () => Promise<void>) => {
     Alert.alert(title, undefined, [
@@ -125,6 +135,7 @@ export default function PrinterDashboardScreen() {
 
   const applyTemp = (value: number) => {
     if (!tempEdit) return;
+    const key = tempEdit.kind === 'bed' ? 'bed' : `n${tempEdit.index}`;
     const fn =
       tempEdit.kind === 'bed'
         ? () => (moonraker ? moonraker.setBedTemp(value) : client!.setTemp({ bedC: value }))
@@ -133,7 +144,7 @@ export default function PrinterDashboardScreen() {
               ? moonraker.setExtruderTemp(tempEdit.index, value)
               : client!.setTemp({ toolC: value });
     setTempEdit(null);
-    runAction(fn);
+    runOptimistic(setOptimisticTemps, key, value, fn);
   };
 
   const tempTarget: SetTempTarget | null = !tempEdit
@@ -149,16 +160,24 @@ export default function PrinterDashboardScreen() {
 
   const cam = webcams[camIndex] ?? webcams[0];
   const chamber = tools?.chamber ?? state?.chamber;
+  const fans = (tools?.fans ?? []).map((f) =>
+    optimisticFans[f.key] !== undefined ? { ...f, speedPct: optimisticFans[f.key] } : f,
+  );
   const canSetTemp = state?.capabilities.canSetTemp ?? false;
 
   // On the CC2 the loaded tray feeds the single extruder, so surface its
-  // filament on that nozzle's temp row.
+  // filament on that nozzle's temp row. Apply any pending optimistic target.
   const activeTray = cfs?.units.flatMap((u) => u.trays).find((t) => t.active);
   const baseExtruders = tools?.extruders ?? state?.extruders ?? [];
-  const extruders =
-    activeTray && baseExtruders.length === 1
-      ? [{ ...baseExtruders[0], filament: activeTray.filament }]
-      : baseExtruders;
+  const extruders = baseExtruders.map((e) => {
+    const o = optimisticTemps[`n${e.index}`];
+    const filament = activeTray && baseExtruders.length === 1 ? activeTray.filament : e.filament;
+    return { ...e, filament, target: o ?? e.target };
+  });
+  const bed =
+    state?.bed && optimisticTemps.bed !== undefined
+      ? { ...state.bed, target: optimisticTemps.bed }
+      : state?.bed;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -262,14 +281,14 @@ export default function PrinterDashboardScreen() {
               />
             );
           })}
-          {state.bed && (
+          {bed && (
             <TempRow
               label="Bed"
-              actual={state.bed.actual}
-              target={state.bed.target}
+              actual={bed.actual}
+              target={bed.target}
               onEdit={
-                canSetTemp && state.bed.settable
-                  ? () => setTempEdit({ kind: 'bed', current: state.bed!.target })
+                canSetTemp && bed.settable
+                  ? () => setTempEdit({ kind: 'bed', current: bed.target })
                   : undefined
               }
             />
@@ -279,6 +298,19 @@ export default function PrinterDashboardScreen() {
       )}
 
       {cfs && <FilamentSystemCard cfs={cfs} />}
+
+      {moonraker && fans.length > 0 && (
+        <Card style={{ gap: 12 }}>
+          <Text style={styles.sectionTitle}>Fans</Text>
+          {fans.map((f) => (
+            <FanRow
+              key={f.key}
+              fan={f}
+              onSet={(pct) => runOptimistic(setOptimisticFans, f.key, pct, () => moonraker.setFanSpeed(f.key, pct))}
+            />
+          ))}
+        </Card>
+      )}
 
       {state && client && state.capabilities.canSetLight && state.lights.length > 0 && (
         <Card style={{ gap: 12 }}>
@@ -428,6 +460,41 @@ function aiColor(score: number): string {
   return colors.ok;
 }
 
+const FAN_PRESETS = [0, 25, 50, 75, 100];
+
+function FanRow({ fan, onSet }: { fan: Fan; onSet: (pct: number) => void }) {
+  // The shown speed snaps to the nearest preset so the active chip lines up.
+  const nearest = FAN_PRESETS.reduce((a, b) =>
+    Math.abs(b - fan.speedPct) < Math.abs(a - fan.speedPct) ? b : a,
+  );
+  return (
+    <View style={{ gap: 8 }}>
+      <View style={styles.tempRow}>
+        <Text style={styles.tempLabel}>{fan.label}</Text>
+        <Text style={styles.tempValue}>{fan.speedPct}%</Text>
+      </View>
+      {fan.settable && (
+        <View style={styles.fanPresets}>
+          {FAN_PRESETS.map((p) => {
+            const on = p === nearest;
+            return (
+              <Pressable
+                key={p}
+                onPress={() => onSet(p)}
+                style={[styles.fanChip, on && styles.fanChipActive]}
+              >
+                <Text style={[styles.fanChipText, on && styles.fanChipTextActive]}>
+                  {p === 0 ? 'Off' : `${p}%`}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+}
+
 function FilamentSystemCard({ cfs }: { cfs: FilamentSystem }) {
   const trays = cfs.units.flatMap((u) => u.trays);
   if (trays.length === 0) return null;
@@ -543,4 +610,17 @@ const styles = StyleSheet.create({
   cfsSwatch: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: colors.border },
   cfsSlotLabel: { color: colors.text, fontSize: 14, fontWeight: '600' },
   cfsActiveTag: { color: colors.accent, fontSize: 11, fontWeight: '700' },
+  fanPresets: { flexDirection: 'row', gap: 8 },
+  fanChip: {
+    flex: 1,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+  },
+  fanChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  fanChipText: { color: colors.muted, fontSize: 13, fontWeight: '600' },
+  fanChipTextActive: { color: colors.text },
 });

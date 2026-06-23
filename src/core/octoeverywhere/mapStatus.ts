@@ -1,9 +1,10 @@
 import type {
   Capabilities,
   ConnectionState,
+  Extruder,
   PrinterModel,
   PrinterState,
-  TempChannel,
+  TempReading,
 } from '../model/printer';
 import { OeFeature, type RawStatusResult } from './raw';
 
@@ -33,18 +34,34 @@ function mapModel(platformVersion?: string): PrinterModel {
   return 'unknown';
 }
 
-function buildTemps(raw: RawStatusResult, hasTempControl: boolean): TempChannel[] {
+// OE's normalized status only reports a single hotend. Multi-nozzle printers
+// are enriched separately from Moonraker (see src/core/moonraker).
+function buildExtruders(raw: RawStatusResult, hasTempControl: boolean): Extruder[] {
   const t = raw.JobStatus.CurrentPrint.Temps;
-  const channels: TempChannel[] = [
-    { id: 'nozzle', label: 'Nozzle', actual: t.HotendActual, target: t.HotendTarget, settable: hasTempControl },
-    { id: 'bed', label: 'Bed', actual: t.BedActual, target: t.BedTarget, settable: hasTempControl },
+  return [
+    {
+      index: 0,
+      label: 'Nozzle',
+      actual: t.HotendActual,
+      target: t.HotendTarget,
+      settable: hasTempControl,
+      active: true,
+    },
   ];
-  // Only surface a chamber channel when the printer actually reports one.
-  // Chamber set is not supported on the CC2, so never mark it settable here.
+}
+
+function buildBed(raw: RawStatusResult, hasTempControl: boolean): TempReading {
+  const t = raw.JobStatus.CurrentPrint.Temps;
+  return { actual: t.BedActual, target: t.BedTarget, settable: hasTempControl };
+}
+
+// Chamber set isn't supported on the CC2, so never mark it settable here.
+function buildChamber(raw: RawStatusResult): TempReading | undefined {
+  const t = raw.JobStatus.CurrentPrint.Temps;
   if (t.ChamberActual > 0 || t.ChamberTarget > 0) {
-    channels.push({ id: 'chamber', label: 'Chamber', actual: t.ChamberActual, target: t.ChamberTarget, settable: false });
+    return { actual: t.ChamberActual, target: t.ChamberTarget, settable: false };
   }
-  return channels;
+  return undefined;
 }
 
 function buildCapabilities(features: number, connection: ConnectionState): Capabilities {
@@ -97,7 +114,9 @@ export function mapStatus(raw: RawStatusResult, now: number = Date.now()): Print
     connection,
     isActive,
     job,
-    temps: buildTemps(raw, (features & OeFeature.TEMPERATURE_CONTROL) !== 0),
+    extruders: buildExtruders(raw, (features & OeFeature.TEMPERATURE_CONTROL) !== 0),
+    bed: buildBed(raw, (features & OeFeature.TEMPERATURE_CONTROL) !== 0),
+    chamber: buildChamber(raw),
     capabilities: buildCapabilities(features, connection),
     platformVersion: raw.PlatformVersion,
     lastUpdated: now,

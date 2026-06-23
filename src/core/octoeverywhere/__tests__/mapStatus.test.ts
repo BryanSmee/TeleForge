@@ -72,14 +72,15 @@ describe('mapStatus — idle (stale CurrentPrint must be ignored)', () => {
   });
 
   it('still exposes live temps, including the chamber', () => {
-    expect(state.temps.map((t) => t.id)).toEqual(['nozzle', 'bed', 'chamber']);
-    expect(state.temps.find((t) => t.id === 'nozzle')?.actual).toBe(40);
-    expect(state.temps.find((t) => t.id === 'chamber')?.actual).toBe(31);
+    expect(state.extruders).toHaveLength(1);
+    expect(state.extruders[0].actual).toBe(40);
+    expect(state.bed?.actual).toBe(38);
+    expect(state.chamber?.actual).toBe(31);
   });
 
   it('marks nozzle/bed settable but never the chamber', () => {
-    expect(state.temps.find((t) => t.id === 'nozzle')?.settable).toBe(true);
-    expect(state.temps.find((t) => t.id === 'chamber')?.settable).toBe(false);
+    expect(state.extruders[0].settable).toBe(true);
+    expect(state.chamber?.settable).toBe(false);
   });
 
   it('derives capabilities from the feature bitfield + state', () => {

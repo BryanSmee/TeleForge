@@ -3,11 +3,11 @@ import { MoonrakerClient } from '../client';
 
 const BASE = 'https://shared-test.octoeverywhere.com';
 
-function clientWithSpy() {
+function clientWithSpy(body = '{"result":"ok"}') {
   const calls: { url: string; method?: string }[] = [];
   const fetchImpl = jest.fn(async (url: string | URL | Request, init?: RequestInit) => {
     calls.push({ url: String(url), method: init?.method });
-    return new Response('{"result":"ok"}', { status: 200 });
+    return new Response(body, { status: 200 });
   }) as unknown as typeof fetch;
   return { client: new MoonrakerClient({ baseUrl: BASE, fetchImpl }), calls };
 }
@@ -56,5 +56,32 @@ describe('MoonrakerClient.setFanSpeed', () => {
     const { client, calls } = clientWithSpy();
     await client.setFanSpeed('fan', 150);
     expect(calls[0].url).toContain(encodeURIComponent('M106 S255'));
+  });
+});
+
+describe('MoonrakerClient files', () => {
+  it('lists gcode files, mapping fields and sorting newest first', async () => {
+    const body = JSON.stringify({
+      result: [
+        { path: 'old.gcode', modified: 100, size: 1000 },
+        { path: 'new.gcode', modified: 300, size: 2000 },
+        { path: 'mid.gcode', modified: 200, size: 1500 },
+      ],
+    });
+    const { client, calls } = clientWithSpy(body);
+    const files = await client.listFiles();
+
+    expect(calls[0].url).toBe(`${BASE}/server/files/list?root=gcodes`);
+    expect(files.map((f) => f.path)).toEqual(['new.gcode', 'mid.gcode', 'old.gcode']);
+    expect(files[0]).toEqual({ path: 'new.gcode', modifiedEpochSec: 300, sizeBytes: 2000 });
+  });
+
+  it('starts a print with the URL-encoded filename', async () => {
+    const { client, calls } = clientWithSpy();
+    await client.startPrint('subdir/My Benchy.gcode');
+    expect(calls[0].method).toBe('POST');
+    expect(calls[0].url).toBe(
+      `${BASE}/printer/print/start?filename=${encodeURIComponent('subdir/My Benchy.gcode')}`,
+    );
   });
 });

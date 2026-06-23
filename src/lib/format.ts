@@ -37,3 +37,35 @@ export function formatProgress(progress: number): number {
   }
   return Math.max(0, Math.min(100, Math.round(progress)));
 }
+
+/** Format a byte count as `0 B` / `12 KB` / `3.4 MB`. */
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B';
+  }
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = bytes;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i += 1;
+  }
+  const rounded = value >= 10 || i === 0 ? Math.round(value) : Math.round(value * 10) / 10;
+  return `${rounded} ${units[i]}`;
+}
+
+/** Format an epoch-seconds time as a relative `5m ago` / `3h ago` / `2d ago`, else a date. */
+export function formatRelative(epochSec: number, nowMs: number = Date.now()): string {
+  if (!Number.isFinite(epochSec) || epochSec <= 0) {
+    return '';
+  }
+  const diffSec = Math.max(0, Math.floor(nowMs / 1000 - epochSec));
+  if (diffSec < 60) return 'just now';
+  const m = Math.floor(diffSec / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d ago`;
+  return new Date(epochSec * 1000).toLocaleDateString();
+}

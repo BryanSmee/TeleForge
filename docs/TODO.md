@@ -17,7 +17,7 @@ The list of things to implement (that I know) are missing:
       persisted per-printer setting + UI. (Snapshot only works over LAN; through
       the OE relay it trips the 609 back-to-back limit.)
  - Notifications
- - File explorer with the possibility to (re)start a job
+ - File explorer on the CC2 (the U1 lists gcodes + start/restart via Moonraker; CC2 file ops need raw MQTT)
  - Language Support
  - Controls (the model + OE API already support these; UI is what's missing)
     - Fan speed on the CC2 (raw MQTT — the U1 part-cooling/generic fans are done via Moonraker)

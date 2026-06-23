@@ -25,6 +25,7 @@ export default function RootLayout() {
         <Stack.Screen name="add-printer" options={{ title: 'Add printer', presentation: 'modal' }} />
         <Stack.Screen name="printer/[id]/index" options={{ title: 'Printer' }} />
         <Stack.Screen name="printer/[id]/settings" options={{ title: 'Settings' }} />
+        <Stack.Screen name="printer/[id]/files" options={{ title: 'Files' }} />
         <Stack.Screen name="printer/[id]/ui" options={{ title: 'Web UI' }} />
       </Stack>
     </>

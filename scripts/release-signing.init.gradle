@@ -2,28 +2,30 @@
 //
 // Expo's prebuild template signs the `release` build type with the *debug* key
 // (`signingConfig signingConfigs.debug`), which the Play Store rejects. Applied
-// as a Gradle init script (`--init-script`), this runs after the project is
-// evaluated and reassigns `release` to a keystore described by env vars — so no
-// secrets ever touch the generated Gradle files.
-gradle.projectsEvaluated {
-    rootProject.subprojects { proj ->
-        if (proj.plugins.hasPlugin('com.android.application')) {
-            proj.android {
-                signingConfigs {
-                    release {
-                        storeFile file(System.getenv('ANDROID_KEYSTORE_FILE'))
-                        storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
-                        keyAlias System.getenv('ANDROID_KEY_ALIAS')
-                        keyPassword System.getenv('ANDROID_KEY_PASSWORD') ?:
-                            System.getenv('ANDROID_KEYSTORE_PASSWORD')
-                    }
-                }
-                buildTypes {
-                    release {
-                        signingConfig signingConfigs.release
-                    }
-                }
-            }
+// as a Gradle init script (`--init-script`), this injects a real keystore
+// (described by env vars) without editing any generated Gradle files.
+//
+// It must run in AGP's `finalizeDsl` hook: by the time `projectsEvaluated`
+// fires, the signing configs are already locked ("It is too late to add new
+// signing configs"). finalizeDsl is the supported last point to mutate the DSL.
+gradle.beforeProject { project ->
+    project.plugins.withId('com.android.application') {
+        def androidComponents = project.extensions.findByName('androidComponents')
+        if (androidComponents == null) return
+
+        androidComponents.finalizeDsl { android ->
+            def storeFile = System.getenv('ANDROID_KEYSTORE_FILE')
+            if (!storeFile) return
+
+            def release = android.signingConfigs.maybeCreate('release')
+            release.storeFile = project.file(storeFile)
+            release.storePassword = System.getenv('ANDROID_KEYSTORE_PASSWORD')
+            release.keyAlias = System.getenv('ANDROID_KEY_ALIAS')
+            release.keyPassword = System.getenv('ANDROID_KEY_PASSWORD') ?:
+                System.getenv('ANDROID_KEYSTORE_PASSWORD')
+
+            android.buildTypes.getByName('release').signingConfig = release
+            project.logger.lifecycle("[teleforge] release signing -> ${storeFile}")
         }
     }
 }

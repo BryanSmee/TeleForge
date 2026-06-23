@@ -30,12 +30,16 @@ device, **not** accepted by the Play Store.
 
 ## Release-signed build (for the Play Store)
 
-1. Create an upload keystore once (keep it safe and out of git):
+> The default build is **debug-signed**. If you upload that AAB, the Play
+> Console rejects it with *"signed in debug mode / vous devez le signer en mode
+> version de sortie"*. You need a release keystore.
+
+1. Create an upload keystore once (uses the JDK in the build image, so you don't
+   need one on the host). Keep it and its password safe — losing them means you
+   can't update the app:
 
    ```bash
-   mkdir -p credentials
-   keytool -genkeypair -v -keystore credentials/release.jks \
-     -alias upload -keyalg RSA -keysize 2048 -validity 10000
+   scripts/make-keystore.sh           # -> credentials/release.jks, alias "upload"
    ```
 
 2. Build, passing the credentials:
@@ -45,11 +49,14 @@ device, **not** accepted by the Play Store.
    ANDROID_KEYSTORE_PASSWORD=<store password> \
    ANDROID_KEY_ALIAS=upload \
    ANDROID_KEY_PASSWORD=<key password> \
-     scripts/build-android.sh
+     bun run build:android:local
    ```
 
-   The resulting `app-release.aab` is signed with your upload key and ready for
-   the Play Console (which re-signs it via Play App Signing).
+   A real `release` signing config is injected via a Gradle init script
+   (`scripts/release-signing.init.gradle`), overriding the Expo template's
+   default debug signing. The build prints the signing certificate at the end —
+   confirm it is **not** `CN=Android Debug`. The resulting `app-release.aab` is
+   ready for the Play Console (which re-signs it via Play App Signing).
 
 ## How it works
 

@@ -1,0 +1,29 @@
+// Forces a real release signing config onto the app module.
+//
+// Expo's prebuild template signs the `release` build type with the *debug* key
+// (`signingConfig signingConfigs.debug`), which the Play Store rejects. Applied
+// as a Gradle init script (`--init-script`), this runs after the project is
+// evaluated and reassigns `release` to a keystore described by env vars — so no
+// secrets ever touch the generated Gradle files.
+gradle.projectsEvaluated {
+    rootProject.subprojects { proj ->
+        if (proj.plugins.hasPlugin('com.android.application')) {
+            proj.android {
+                signingConfigs {
+                    release {
+                        storeFile file(System.getenv('ANDROID_KEYSTORE_FILE'))
+                        storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                        keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                        keyPassword System.getenv('ANDROID_KEY_PASSWORD') ?:
+                            System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                    }
+                }
+                buildTypes {
+                    release {
+                        signingConfig signingConfigs.release
+                    }
+                }
+            }
+        }
+    }
+}

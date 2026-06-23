@@ -29,28 +29,40 @@ bunx expo prebuild --platform android --clean --no-install
 
 cd "$APP/android"
 
-# Release signing: if a keystore is provided, sign via Gradle's injected
-# signing properties (no need to edit the generated build.gradle). Otherwise
-# the artifacts get the debug key — fine for sideloading, NOT for the Store.
-SIGNING_ARGS=()
+# Release signing: if a keystore is provided, force a real release signingConfig
+# via a Gradle init script (the Expo template otherwise signs `release` with the
+# debug key, which the Play Store rejects). No keystore → debug-signed.
+GRADLE_ARGS=(--no-daemon)
 if [[ -n "${ANDROID_KEYSTORE_FILE:-}" && -f "${ANDROID_KEYSTORE_FILE}" ]]; then
+  : "${ANDROID_KEYSTORE_PASSWORD:?set ANDROID_KEYSTORE_PASSWORD}"
+  : "${ANDROID_KEY_ALIAS:?set ANDROID_KEY_ALIAS}"
   echo "▶ Release-signing with ${ANDROID_KEYSTORE_FILE}"
-  SIGNING_ARGS=(
-    "-Pandroid.injected.signing.store.file=${ANDROID_KEYSTORE_FILE}"
-    "-Pandroid.injected.signing.store.password=${ANDROID_KEYSTORE_PASSWORD:?set ANDROID_KEYSTORE_PASSWORD}"
-    "-Pandroid.injected.signing.key.alias=${ANDROID_KEY_ALIAS:?set ANDROID_KEY_ALIAS}"
-    "-Pandroid.injected.signing.key.password=${ANDROID_KEY_PASSWORD:-${ANDROID_KEYSTORE_PASSWORD}}"
-  )
+  GRADLE_ARGS+=(--init-script "$APP/scripts/release-signing.init.gradle")
 else
   echo "⚠ No ANDROID_KEYSTORE_FILE set — output will be DEBUG-signed."
-  echo "  Good for sideloading/testing; the Play Store needs a release keystore."
+  echo "  Good for sideloading/testing; the Play Store will REJECT it."
 fi
 
 echo "▶ Building APK + AAB…"
-./gradlew --no-daemon assembleRelease bundleRelease "${SIGNING_ARGS[@]}"
+./gradlew "${GRADLE_ARGS[@]}" assembleRelease bundleRelease
 
 mkdir -p "$OUT"
 cp -v app/build/outputs/apk/release/*.apk "$OUT"/ 2>/dev/null || echo "  (no APK produced)"
 cp -v app/build/outputs/bundle/release/*.aab "$OUT"/ 2>/dev/null || echo "  (no AAB produced)"
 
+# Sanity-check what actually signed the bundle — the debug key's cert is
+# CN=Android Debug, which is exactly what the Store complains about.
+aab="$(ls "$OUT"/*.aab 2>/dev/null | head -1 || true)"
+if [[ -n "$aab" ]]; then
+  cert="$(keytool -printcert -jarfile "$aab" 2>/dev/null || true)"
+  if echo "$cert" | grep -qi 'Android Debug'; then
+    echo "❌ The AAB is DEBUG-signed (CN=Android Debug) — the Play Store will reject it."
+    echo "   Re-run with ANDROID_KEYSTORE_FILE / _PASSWORD / ANDROID_KEY_ALIAS set."
+  else
+    echo "▶ AAB signing certificate:"
+    echo "$cert" | grep -iE 'Owner:|Propriétaire|Valid|Vald|valable' | head -2
+  fi
+fi
+
 echo "✅ Done — artifacts are in ./build-output/"
+

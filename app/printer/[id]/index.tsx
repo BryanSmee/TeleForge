@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { usePrintersStore } from '../../../src/store/printers';
@@ -31,10 +31,12 @@ export default function PrinterDashboardScreen() {
   const [fullscreen, setFullscreen] = useState(false);
   const [camIndex, setCamIndex] = useState(0);
   const [tempEdit, setTempEdit] = useState<TempEdit | null>(null);
-  // Switches are controlled by polled state, which only refreshes every few
-  // seconds — so a tap wouldn't visibly flip until the next poll. Track the
-  // intended value locally to flip instantly, then let polling reconcile.
+  // Switches/sliders are controlled by polled state, which only refreshes every
+  // few seconds — so a tap wouldn't visibly change until the next poll. Track
+  // the intended value locally to update instantly, then let polling reconcile.
   const [optimisticLights, setOptimisticLights] = useState<Record<string, boolean>>({});
+  const [optimisticFans, setOptimisticFans] = useState<Record<string, number>>({});
+  const [optimisticTemps, setOptimisticTemps] = useState<Record<string, number>>({});
 
   const { state, error, refresh } = usePrinterStatus(printer?.baseUrl);
   const client = useMemo(
@@ -88,30 +90,37 @@ export default function PrinterDashboardScreen() {
     }
   };
 
-  const toggleLight = async (name: string, on: boolean) => {
-    setOptimisticLights((m) => ({ ...m, [name]: on })); // flip the switch now
-    try {
-      await client!.setLight(name, on);
-      refresh();
-    } catch (e) {
-      setOptimisticLights((m) => {
+  // Apply a control change with instant feedback: stash the intended value so
+  // the UI updates now, fire the request, then drop the override once polling
+  // has caught up (or revert it immediately on failure).
+  const runOptimistic = <V,>(
+    setMap: Dispatch<SetStateAction<Record<string, V>>>,
+    key: string,
+    value: V,
+    fn: () => Promise<void>,
+  ) => {
+    const clear = () =>
+      setMap((m) => {
         const next = { ...m };
-        delete next[name];
+        delete next[key];
         return next;
       });
-      Alert.alert('Action failed', e instanceof Error ? e.message : 'Unknown error');
-      return;
-    }
-    // Drop the override once polling has had time to catch up, so an external
-    // change to the light isn't masked by a stale optimistic value.
-    setTimeout(() => {
-      setOptimisticLights((m) => {
-        const next = { ...m };
-        delete next[name];
-        return next;
-      });
-    }, 4000);
+    setMap((m) => ({ ...m, [key]: value }));
+    (async () => {
+      try {
+        await fn();
+        refresh();
+      } catch (e) {
+        clear();
+        Alert.alert('Action failed', e instanceof Error ? e.message : 'Unknown error');
+        return;
+      }
+      setTimeout(clear, 4000);
+    })();
   };
+
+  const toggleLight = (name: string, on: boolean) =>
+    runOptimistic(setOptimisticLights, name, on, () => client!.setLight(name, on));
 
   const confirmAction = (title: string, confirmLabel: string, destructive: boolean, fn: () => Promise<void>) => {
     Alert.alert(title, undefined, [
@@ -126,6 +135,7 @@ export default function PrinterDashboardScreen() {
 
   const applyTemp = (value: number) => {
     if (!tempEdit) return;
+    const key = tempEdit.kind === 'bed' ? 'bed' : `n${tempEdit.index}`;
     const fn =
       tempEdit.kind === 'bed'
         ? () => (moonraker ? moonraker.setBedTemp(value) : client!.setTemp({ bedC: value }))
@@ -134,7 +144,7 @@ export default function PrinterDashboardScreen() {
               ? moonraker.setExtruderTemp(tempEdit.index, value)
               : client!.setTemp({ toolC: value });
     setTempEdit(null);
-    runAction(fn);
+    runOptimistic(setOptimisticTemps, key, value, fn);
   };
 
   const tempTarget: SetTempTarget | null = !tempEdit
@@ -150,17 +160,24 @@ export default function PrinterDashboardScreen() {
 
   const cam = webcams[camIndex] ?? webcams[0];
   const chamber = tools?.chamber ?? state?.chamber;
-  const fans = tools?.fans ?? [];
+  const fans = (tools?.fans ?? []).map((f) =>
+    optimisticFans[f.key] !== undefined ? { ...f, speedPct: optimisticFans[f.key] } : f,
+  );
   const canSetTemp = state?.capabilities.canSetTemp ?? false;
 
   // On the CC2 the loaded tray feeds the single extruder, so surface its
-  // filament on that nozzle's temp row.
+  // filament on that nozzle's temp row. Apply any pending optimistic target.
   const activeTray = cfs?.units.flatMap((u) => u.trays).find((t) => t.active);
   const baseExtruders = tools?.extruders ?? state?.extruders ?? [];
-  const extruders =
-    activeTray && baseExtruders.length === 1
-      ? [{ ...baseExtruders[0], filament: activeTray.filament }]
-      : baseExtruders;
+  const extruders = baseExtruders.map((e) => {
+    const o = optimisticTemps[`n${e.index}`];
+    const filament = activeTray && baseExtruders.length === 1 ? activeTray.filament : e.filament;
+    return { ...e, filament, target: o ?? e.target };
+  });
+  const bed =
+    state?.bed && optimisticTemps.bed !== undefined
+      ? { ...state.bed, target: optimisticTemps.bed }
+      : state?.bed;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -264,14 +281,14 @@ export default function PrinterDashboardScreen() {
               />
             );
           })}
-          {state.bed && (
+          {bed && (
             <TempRow
               label="Bed"
-              actual={state.bed.actual}
-              target={state.bed.target}
+              actual={bed.actual}
+              target={bed.target}
               onEdit={
-                canSetTemp && state.bed.settable
-                  ? () => setTempEdit({ kind: 'bed', current: state.bed!.target })
+                canSetTemp && bed.settable
+                  ? () => setTempEdit({ kind: 'bed', current: bed.target })
                   : undefined
               }
             />
@@ -289,7 +306,7 @@ export default function PrinterDashboardScreen() {
             <FanRow
               key={f.key}
               fan={f}
-              onSet={(pct) => runAction(() => moonraker.setFanSpeed(f.key, pct))}
+              onSet={(pct) => runOptimistic(setOptimisticFans, f.key, pct, () => moonraker.setFanSpeed(f.key, pct))}
             />
           ))}
         </Card>

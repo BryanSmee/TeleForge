@@ -108,6 +108,12 @@ export interface Capabilities {
   canStart: boolean;
 }
 
+export interface Light {
+  /** Platform light id, e.g. "cavity_led" / "chamber". */
+  name: string;
+  on: boolean;
+}
+
 export interface PrinterState {
   model: PrinterModel;
   connection: ConnectionState;
@@ -119,6 +125,8 @@ export interface PrinterState {
   extruders: Extruder[];
   bed?: TempReading;
   chamber?: TempReading;
+  /** Controllable lights reported by the platform. */
+  lights: Light[];
   capabilities: Capabilities;
   platformVersion?: string;
   /** When this snapshot was produced (epoch ms). */

@@ -22,7 +22,6 @@ The list of things to implement (that I know) are missing:
  - Language Support
  - Controls (the model + OE API already support these; UI is what's missing)
     - Fan speed (U1: Moonraker `M106` / fan objects; CC2: raw MQTT)
-    - Light toggle (U1 `cavity_led`, CC2 chamber light)
 
 
 ## CC2-specific (needs CC2 on hand to build/verify)

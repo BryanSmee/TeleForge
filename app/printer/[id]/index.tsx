@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { usePrintersStore } from '../../../src/store/printers';
 import { usePrinterStatus } from '../../../src/hooks/usePrinterStatus';
@@ -211,6 +211,21 @@ export default function PrinterDashboardScreen() {
         </Card>
       )}
 
+      {state && client && state.capabilities.canSetLight && state.lights.length > 0 && (
+        <Card style={{ gap: 12 }}>
+          <Text style={styles.sectionTitle}>Lights</Text>
+          {state.lights.map((l) => (
+            <View key={l.name} style={styles.tempRow}>
+              <Text style={styles.tempLabel}>{prettyLightName(l.name)}</Text>
+              <Switch
+                value={l.on}
+                onValueChange={(on) => runAction(() => client.setLight(l.name, on))}
+              />
+            </View>
+          ))}
+        </Card>
+      )}
+
       <SetTempModal target={tempTarget} onSet={applyTemp} onClose={() => setTempEdit(null)} />
 
       {state && client && (
@@ -336,6 +351,11 @@ function TempRow({
       )}
     </View>
   );
+}
+
+function prettyLightName(name: string): string {
+  const cleaned = name.replace(/_/g, ' ').replace(/\bled\b/i, '').trim() || name;
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
 function dotColor(state: PrinterState): string {

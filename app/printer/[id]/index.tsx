@@ -5,7 +5,7 @@ import { usePrintersStore } from '../../../src/store/printers';
 import { usePrinterStatus } from '../../../src/hooks/usePrinterStatus';
 import { useMoonrakerTools } from '../../../src/hooks/useMoonrakerTools';
 import { OctoEverywhereClient } from '../../../src/core/octoeverywhere';
-import type { PrinterState, WebcamSource } from '../../../src/core/model/printer';
+import type { Filament, PrinterState, WebcamSource } from '../../../src/core/model/printer';
 import { Button, Card, ProgressBar, colors } from '../../../src/components/ui';
 import { WebcamView } from '../../../src/components/WebcamView';
 import { formatClock, formatDuration } from '../../../src/lib/format';
@@ -22,8 +22,9 @@ export default function PrinterDashboardScreen() {
   );
 
   // The U1 has 4 nozzles; OE status only carries one. Pull the full set from
-  // Moonraker for Klipper printers and prefer it; otherwise use the OE hotend.
-  const tools = useMoonrakerTools(printer?.baseUrl, state?.model === 'klipper');
+  // Moonraker — OE reports a useless platform version ("1.0.0") for Moonraker,
+  // so enable for any non-CC2 printer (the query no-ops if it isn't Moonraker).
+  const tools = useMoonrakerTools(printer?.baseUrl, !!state && state.model !== 'cc2');
 
   // Webcams must come from list-webcam (status omits the stream/snapshot URLs).
   const [webcams, setWebcams] = useState<WebcamSource[]>([]);
@@ -136,6 +137,7 @@ export default function PrinterDashboardScreen() {
               actual={e.actual}
               target={e.target}
               active={extruders.length > 1 ? e.active : undefined}
+              filament={e.filament}
             />
           ))}
           {state.bed && <TempRow label="Bed" actual={state.bed.actual} target={state.bed.target} />}
@@ -198,11 +200,13 @@ function TempRow({
   actual,
   target,
   active,
+  filament,
 }: {
   label: string;
   actual: number;
   target: number;
   active?: boolean;
+  filament?: Filament;
 }) {
   return (
     <View style={styles.tempRow}>
@@ -211,6 +215,14 @@ function TempRow({
           <View style={[styles.activeDot, { backgroundColor: active ? colors.ok : colors.border }]} />
         )}
         <Text style={styles.tempLabel}>{label}</Text>
+        {filament && (
+          <View style={styles.filamentTag}>
+            {filament.colorHex && (
+              <View style={[styles.swatch, { backgroundColor: filament.colorHex }]} />
+            )}
+            {filament.material ? <Text style={styles.muted}>{filament.material}</Text> : null}
+          </View>
+        )}
       </View>
       <Text style={styles.tempValue}>
         {Math.round(actual)}°
@@ -248,6 +260,8 @@ const styles = StyleSheet.create({
   tempLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   activeDot: { width: 8, height: 8, borderRadius: 4 },
   tempLabel: { color: colors.text, fontSize: 15 },
+  filamentTag: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  swatch: { width: 12, height: 12, borderRadius: 3, borderWidth: 1, borderColor: colors.border },
   tempValue: { color: colors.text, fontSize: 15, fontWeight: '600' },
   controls: { flexDirection: 'row', gap: 12 },
   webcamPreview: { height: 220, borderRadius: 12 },

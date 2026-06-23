@@ -23,17 +23,25 @@ const status: Record<string, any> = {
   heater_bed: { temperature: 25, target: 0 },
   'temperature_sensor cavity': { temperature: 31 },
   toolhead: { extruder: 'extruder1' },
+  // From the real U1 print_task_config.
+  print_task_config: {
+    filament_type: ['PLA', 'PLA', 'PLA', 'PLA'],
+    filament_sub_type: ['SnapSpeed', 'SnapSpeed', 'Matte', 'SnapSpeed'],
+    filament_color_rgba: ['080A0DFF', 'E2DEDBFF', '0078BFFF', 'E72F1DFF'],
+    filament_exist: [true, true, true, true],
+  },
 };
 
 describe('toolObjectNames', () => {
-  it('selects all extruders, toolhead, and the chamber sensor', () => {
-    expect(toolObjectNames(objects)).toEqual([
+  it('selects all extruders, toolhead, the chamber sensor, and filament config', () => {
+    expect(toolObjectNames([...objects, 'print_task_config'])).toEqual([
       'extruder',
       'extruder1',
       'extruder2',
       'extruder3',
       'toolhead',
       'temperature_sensor cavity',
+      'print_task_config',
     ]);
   });
 });
@@ -57,6 +65,20 @@ describe('parseMoonrakerTools (real U1 shape)', () => {
 
   it('reads the chamber from temperature_sensor cavity (read-only)', () => {
     expect(tools.chamber).toEqual({ actual: 31, target: 0, settable: false });
+  });
+
+  it('attaches per-nozzle filament from print_task_config', () => {
+    expect(tools.extruders[0].filament).toEqual({
+      material: 'PLA',
+      name: 'SnapSpeed',
+      colorHex: '#080A0D',
+    });
+    expect(tools.extruders[2].filament).toMatchObject({ name: 'Matte', colorHex: '#0078BF' });
+  });
+
+  it('omits filament for an empty slot', () => {
+    const s = { ...status, print_task_config: { ...status.print_task_config, filament_exist: [false, true, true, true] } };
+    expect(parseMoonrakerTools(objects, s).extruders[0].filament).toBeUndefined();
   });
 
   it('labels a single-extruder printer just "Nozzle"', () => {

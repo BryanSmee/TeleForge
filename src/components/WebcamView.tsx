@@ -9,6 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
+import { Image as ExpoImage } from 'expo-image';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import type { WebcamSource } from '../core/model/printer';
 import { colors } from './ui';
@@ -99,14 +100,18 @@ export function WebcamView({
 }
 
 /**
- * Polls the camera's JPEG snapshot via a native <Image>. This is the robust
- * default: no WebView, no MJPEG quirks, and not subject to the stream cap.
+ * Polls the camera's JPEG snapshot via expo-image. expo-image keeps the last
+ * frame on screen while the next loads (no flash) and `cachePolicy="none"`
+ * forces a fresh network fetch every tick.
+ *
+ * The source uses a `#fragment` to make expo-image treat each tick as a new
+ * source (so it refetches) — but a URL fragment is NOT sent to the server, so
+ * the actual request stays the bare snapshot URL. A query-string timestamp made
+ * the camera serve stale "recording" frames; this avoids any query string.
  */
 function SnapshotView({ cam, intervalMs }: { cam: WebcamSource; intervalMs: number }) {
   const [tick, setTick] = useState(0);
-  // Double-buffer: `shownUri` stays visible underneath while the next frame
-  // loads on top, so swapping frames doesn't flash the black background.
-  const [shownUri, setShownUri] = useState<string>();
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [errMsg, setErrMsg] = useState<string>();
 
   useEffect(() => {
@@ -114,41 +119,28 @@ function SnapshotView({ cam, intervalMs }: { cam: WebcamSource; intervalMs: numb
     return () => clearInterval(id);
   }, [intervalMs]);
 
-  const nextUri = useMemo(() => {
-    const sep = cam.snapshotUrl!.includes('?') ? '&' : '?';
-    return `${cam.snapshotUrl}${sep}_t=${tick}`;
-  }, [cam.snapshotUrl, tick]);
-
-  const transform = transformStyle(cam);
+  const source = `${cam.snapshotUrl}#${tick}`;
 
   return (
     <>
-      {shownUri && (
-        <Image
-          source={{ uri: shownUri }}
-          style={[styles.media, { transform }]}
-          resizeMode="contain"
-          fadeDuration={0}
-        />
-      )}
-      <Image
-        key={nextUri}
-        source={{ uri: nextUri }}
-        style={[styles.mediaOverlay, { transform }]}
-        resizeMode="contain"
-        fadeDuration={0}
+      <ExpoImage
+        source={source}
+        style={[styles.media, { transform: transformStyle(cam) }]}
+        contentFit="contain"
+        cachePolicy="none"
+        transition={0}
         onLoad={() => {
-          setShownUri(nextUri);
+          setLoadedOnce(true);
           setErrMsg(undefined);
         }}
-        onError={(e) => setErrMsg(e.nativeEvent?.error || 'Failed to load snapshot')}
+        onError={(e) => setErrMsg(e?.error || 'Failed to load snapshot')}
       />
-      {!shownUri && !errMsg && (
+      {!loadedOnce && !errMsg && (
         <View style={styles.overlayCenter} pointerEvents="none">
           <ActivityIndicator color={colors.accent} />
         </View>
       )}
-      {!shownUri && errMsg && (
+      {!loadedOnce && errMsg && (
         <Pressable
           style={styles.overlayCenter}
           onPress={() => {
@@ -270,7 +262,6 @@ function streamHtml(cam: WebcamSource): string {
 const styles = StyleSheet.create({
   container: { backgroundColor: '#000', overflow: 'hidden', position: 'relative' },
   media: { flex: 1, width: '100%', backgroundColor: '#000' },
-  mediaOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   overlayCenter: {
     position: 'absolute',
     top: 0,

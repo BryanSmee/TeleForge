@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { usePrintersStore } from '../src/store/printers';
-import { OctoEverywhereClient } from '../src/core/octoeverywhere';
+import { OctoEverywhereClient } from '@teleforge/core';
 import { useTranslation } from '../src/i18n/useTranslation';
 import { Button, Card, colors } from '../src/components/ui';
 

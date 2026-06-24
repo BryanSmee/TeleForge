@@ -48,6 +48,9 @@
     "setupFilesAfterEnv": [
       "<rootDir>/jest.setup.ts"
     ],
+    "moduleNameMapper": {
+      "^@teleforge/core$": "<rootDir>/packages/core/src/index.ts"
+    },
     "testMatch": [
       "**/__tests__/**/*.test.ts?(x)"
     ]

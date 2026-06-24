@@ -11,7 +11,7 @@ import {
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { Image as ExpoImage } from 'expo-image';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import type { WebcamSource } from '../core/model/printer';
+import type { WebcamSource } from '@teleforge/core';
 import { useTranslation } from '../i18n/useTranslation';
 import { colors } from './ui';
 

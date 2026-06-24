@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MoonrakerClient, type MoonrakerTools } from '../core/moonraker';
+import { MoonrakerClient, type MoonrakerTools } from '@teleforge/core';
 
 /** Last-known tools per base URL — see the note in usePrinterStatus. */
 const toolsCache = new Map<string, MoonrakerTools>();

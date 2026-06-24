@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { OctoEverywhereClient } from '../core/octoeverywhere';
-import type { PrinterState } from '../core/model/printer';
+import { OctoEverywhereClient, type PrinterState } from '@teleforge/core';
 
 export interface PrinterStatusResult {
   state?: PrinterState;

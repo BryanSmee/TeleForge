@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { usePrintersStore } from '../../../src/store/printers';
-import { MoonrakerClient, type GcodeFile } from '../../../src/core/moonraker';
+import { MoonrakerClient, type GcodeFile } from '@teleforge/core';
 import { useTranslation } from '../../../src/i18n/useTranslation';
 import { colors } from '../../../src/components/ui';
 import { formatBytes, formatRelative } from '../../../src/lib/format';

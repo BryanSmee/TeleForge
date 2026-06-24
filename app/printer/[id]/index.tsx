@@ -5,8 +5,7 @@ import { usePrintersStore } from '../../../src/store/printers';
 import { usePrinterStatus } from '../../../src/hooks/usePrinterStatus';
 import { useMoonrakerTools } from '../../../src/hooks/useMoonrakerTools';
 import { useFilamentSystem } from '../../../src/hooks/useFilamentSystem';
-import { OctoEverywhereClient } from '../../../src/core/octoeverywhere';
-import { MoonrakerClient } from '../../../src/core/moonraker';
+import { OctoEverywhereClient, MoonrakerClient } from '@teleforge/core';
 import type {
   Fan,
   Filament,
@@ -14,7 +13,7 @@ import type {
   FilamentTray,
   PrinterState,
   WebcamSource,
-} from '../../../src/core/model/printer';
+} from '@teleforge/core';
 import { Button, Card, ProgressBar, colors } from '../../../src/components/ui';
 import { WebcamView } from '../../../src/components/WebcamView';
 import { SetTempModal, type SetTempTarget } from '../../../src/components/SetTempModal';

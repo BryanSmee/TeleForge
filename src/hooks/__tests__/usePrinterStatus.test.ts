@@ -1,11 +1,11 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { renderHook, waitFor, act } from '@testing-library/react-native';
-import type { PrinterState } from '../../core/model/printer';
+import type { PrinterState } from '@teleforge/core';
 import { usePrinterStatus } from '../usePrinterStatus';
 
 const mockGetStatus = jest.fn<() => Promise<PrinterState>>();
 
-jest.mock('../../core/octoeverywhere', () => ({
+jest.mock('@teleforge/core', () => ({
   OctoEverywhereClient: jest.fn().mockImplementation(() => ({ getStatus: mockGetStatus })),
 }));
 

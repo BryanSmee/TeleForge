@@ -43,5 +43,5 @@ The list of things to implement (that I know) are missing:
 ## Tech debt / infra
 
  - Extract `packages/core` into a workspace (reusable by a future web client)
- - UI / hook tests (only pure logic is covered today)
+ - Broaden UI/component test coverage (hooks + SetTempModal/Button covered via @testing-library/react-native; screens with expo-router/store wiring still untested)
  - `expo export` + bun: bun hoists `ws@7` where Metro's dev server needs `ws@8` (a temporary `ws` override works; `expo start` is unaffected)

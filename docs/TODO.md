@@ -18,7 +18,7 @@ The list of things to implement (that I know) are missing:
       the OE relay it trips the 609 back-to-back limit.)
  - Notifications
  - File explorer on the CC2 (the U1 lists gcodes + start/restart via Moonraker; CC2 file ops need raw MQTT)
- - Language Support
+ - More languages (en + fr ship today; add locales under `src/i18n/locales`)
  - Controls (the model + OE API already support these; UI is what's missing)
     - Fan speed on the CC2 (raw MQTT — the U1 part-cooling/generic fans are done via Moonraker)
 

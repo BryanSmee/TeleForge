@@ -1,29 +1,38 @@
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import { Link, Stack, useRouter } from 'expo-router';
 import { usePrintersStore, type PrinterConfig } from '../src/store/printers';
+import { useTranslation } from '../src/i18n/useTranslation';
 import { Button, Card, colors } from '../src/components/ui';
 
 export default function PrinterListScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const printers = usePrintersStore((s) => s.printers);
   const hydrated = usePrintersStore((s) => s.hydrated);
   const removePrinter = usePrintersStore((s) => s.removePrinter);
 
   const confirmRemove = (printer: PrinterConfig) => {
-    Alert.alert('Remove printer', `Remove "${printer.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => removePrinter(printer.id) },
+    Alert.alert(t('list.removeTitle'), t('list.removeConfirm', { name: printer.name }), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('common.remove'), style: 'destructive', onPress: () => removePrinter(printer.id) },
     ]);
   };
 
   return (
     <View style={styles.container}>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Pressable onPress={() => router.push('/settings')} hitSlop={8}>
+              <Text style={styles.headerButton}>⚙</Text>
+            </Pressable>
+          ),
+        }}
+      />
       {hydrated && printers.length === 0 ? (
         <Card style={styles.empty}>
-          <Text style={styles.emptyTitle}>No printers yet</Text>
-          <Text style={styles.emptyBody}>
-            Add a printer using its OctoEverywhere Shared Connection URL.
-          </Text>
+          <Text style={styles.emptyTitle}>{t('list.emptyTitle')}</Text>
+          <Text style={styles.emptyBody}>{t('list.emptyBody')}</Text>
         </Card>
       ) : (
         <FlatList
@@ -46,14 +55,12 @@ export default function PrinterListScreen() {
               </Pressable>
             </Link>
           )}
-          ListFooterComponent={
-            <Text style={styles.hint}>Long-press a printer to remove it.</Text>
-          }
+          ListFooterComponent={<Text style={styles.hint}>{t('list.removeHint')}</Text>}
         />
       )}
 
       <View style={styles.footer}>
-        <Button label="Add printer" variant="primary" onPress={() => router.push('/add-printer')} />
+        <Button label={t('list.addPrinter')} variant="primary" onPress={() => router.push('/add-printer')} />
       </View>
     </View>
   );
@@ -79,5 +86,6 @@ const styles = StyleSheet.create({
   emptyTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
   emptyBody: { color: colors.muted, textAlign: 'center' },
   hint: { color: colors.muted, fontSize: 12, textAlign: 'center', paddingTop: 8 },
+  headerButton: { color: colors.text, fontSize: 18 },
   footer: { position: 'absolute', left: 16, right: 16, bottom: 24 },
 });

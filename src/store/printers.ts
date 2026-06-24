@@ -1,19 +1,5 @@
 import { create } from 'zustand';
-import { Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
-
-// expo-secure-store has no web implementation, so fall back to localStorage on
-// web (dev/testing). On native the secret stays in the OS secure store.
-const secureStorage = {
-  getItem: (key: string): Promise<string | null> =>
-    Platform.OS === 'web'
-      ? Promise.resolve(globalThis.localStorage?.getItem(key) ?? null)
-      : SecureStore.getItemAsync(key),
-  setItem: (key: string, value: string): Promise<void> =>
-    Platform.OS === 'web'
-      ? Promise.resolve(globalThis.localStorage?.setItem(key, value))
-      : SecureStore.setItemAsync(key, value),
-};
+import { secureStorage } from './storage';
 
 /**
  * A configured printer. `baseUrl` is the OctoEverywhere Shared Connection URL —

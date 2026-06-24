@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View }
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { usePrintersStore } from '../../../src/store/printers';
 import { MoonrakerClient, type GcodeFile } from '../../../src/core/moonraker';
+import { useTranslation } from '../../../src/i18n/useTranslation';
 import { colors } from '../../../src/components/ui';
 import { formatBytes, formatRelative } from '../../../src/lib/format';
 
@@ -14,6 +15,7 @@ import { formatBytes, formatRelative } from '../../../src/lib/format';
 export default function FilesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { t } = useTranslation();
   const printer = usePrintersStore((s) => s.printers.find((p) => p.id === id));
 
   const client = useMemo(
@@ -53,23 +55,23 @@ export default function FilesScreen() {
   if (!printer) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.muted}>This printer no longer exists.</Text>
+        <Text style={styles.muted}>{t('common.printerGone')}</Text>
       </View>
     );
   }
 
   const confirmStart = (file: GcodeFile) => {
-    Alert.alert('Start print?', basename(file.path), [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('files.startTitle'), basename(file.path), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Start',
+        text: t('files.start'),
         onPress: async () => {
           try {
             setStarting(file.path);
             await client!.startPrint(file.path);
             router.back(); // back to the dashboard to watch progress
           } catch (e) {
-            Alert.alert('Could not start', e instanceof Error ? e.message : 'Unknown error');
+            Alert.alert(t('files.couldNotStart'), e instanceof Error ? e.message : t('common.unknownError'));
           } finally {
             setStarting(undefined);
           }
@@ -80,7 +82,7 @@ export default function FilesScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: `${printer.name} — Files` }} />
+      <Stack.Screen options={{ title: `${printer.name} — ${t('nav.files')}` }} />
 
       {loading && files.length === 0 ? (
         <View style={styles.centered}>
@@ -96,12 +98,12 @@ export default function FilesScreen() {
             }}
             hitSlop={8}
           >
-            <Text style={styles.retry}>Tap to retry</Text>
+            <Text style={styles.retry}>{t('common.retry')}</Text>
           </Pressable>
         </View>
       ) : files.length === 0 ? (
         <View style={styles.centered}>
-          <Text style={styles.muted}>No g-code files on this printer.</Text>
+          <Text style={styles.muted}>{t('files.empty')}</Text>
         </View>
       ) : (
         <FlatList

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useTranslation } from '../i18n/useTranslation';
 import { Button, Card, colors } from './ui';
 
 export interface SetTempTarget {
@@ -23,6 +24,7 @@ export function SetTempModal({
   onSet: (value: number) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const [custom, setCustom] = useState('');
 
   if (!target) return null;
@@ -41,12 +43,12 @@ export function SetTempModal({
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable onPress={() => {}}>
           <Card style={styles.card}>
-            <Text style={styles.title}>Set {target.label}</Text>
-            <Text style={styles.muted}>Current target: {Math.round(target.current)}°C</Text>
+            <Text style={styles.title}>{t('temp.setTitle', { label: target.label })}</Text>
+            <Text style={styles.muted}>{t('temp.currentTarget', { value: Math.round(target.current) })}</Text>
 
             <View style={styles.presets}>
               <Pressable style={styles.chip} onPress={() => apply(0)}>
-                <Text style={styles.chipText}>Off</Text>
+                <Text style={styles.chipText}>{t('common.off')}</Text>
               </Pressable>
               {target.presets.map((p) => (
                 <Pressable key={p} style={styles.chip} onPress={() => apply(p)}>
@@ -58,16 +60,16 @@ export function SetTempModal({
             <View style={styles.customRow}>
               <TextInput
                 style={styles.input}
-                placeholder={`Custom (0–${target.max})`}
+                placeholder={t('temp.customPlaceholder', { max: target.max })}
                 placeholderTextColor={colors.muted}
                 keyboardType="number-pad"
                 value={custom}
                 onChangeText={setCustom}
               />
-              <Button label="Set" variant="primary" disabled={!customValid} onPress={() => apply(customValue)} />
+              <Button label={t('common.set')} variant="primary" disabled={!customValid} onPress={() => apply(customValue)} />
             </View>
 
-            <Button label="Cancel" onPress={onClose} />
+            <Button label={t('common.cancel')} onPress={onClose} />
           </Card>
         </Pressable>
       </Pressable>

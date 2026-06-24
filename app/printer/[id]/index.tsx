@@ -18,6 +18,7 @@ import type {
 import { Button, Card, ProgressBar, colors } from '../../../src/components/ui';
 import { WebcamView } from '../../../src/components/WebcamView';
 import { SetTempModal, type SetTempTarget } from '../../../src/components/SetTempModal';
+import { useTranslation, type Translator } from '../../../src/i18n/useTranslation';
 import { formatClock, formatDuration } from '../../../src/lib/format';
 
 type TempEdit =
@@ -27,6 +28,7 @@ type TempEdit =
 export default function PrinterDashboardScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { t } = useTranslation();
   const printer = usePrintersStore((s) => s.printers.find((p) => p.id === id));
   const [fullscreen, setFullscreen] = useState(false);
   const [camIndex, setCamIndex] = useState(0);
@@ -76,7 +78,7 @@ export default function PrinterDashboardScreen() {
   if (!printer) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.muted}>This printer no longer exists.</Text>
+        <Text style={styles.muted}>{t('common.printerGone')}</Text>
       </View>
     );
   }
@@ -86,7 +88,7 @@ export default function PrinterDashboardScreen() {
       await fn();
       refresh();
     } catch (e) {
-      Alert.alert('Action failed', e instanceof Error ? e.message : 'Unknown error');
+      Alert.alert(t('common.actionFailed'), e instanceof Error ? e.message : t('common.unknownError'));
     }
   };
 
@@ -112,7 +114,7 @@ export default function PrinterDashboardScreen() {
         refresh();
       } catch (e) {
         clear();
-        Alert.alert('Action failed', e instanceof Error ? e.message : 'Unknown error');
+        Alert.alert(t('common.actionFailed'), e instanceof Error ? e.message : t('common.unknownError'));
         return;
       }
       setTimeout(clear, 4000);
@@ -124,7 +126,7 @@ export default function PrinterDashboardScreen() {
 
   const confirmAction = (title: string, confirmLabel: string, destructive: boolean, fn: () => Promise<void>) => {
     Alert.alert(title, undefined, [
-      { text: 'Back', style: 'cancel' },
+      { text: t('common.cancel'), style: 'cancel' },
       {
         text: confirmLabel,
         style: destructive ? 'destructive' : 'default',
@@ -150,7 +152,7 @@ export default function PrinterDashboardScreen() {
   const tempTarget: SetTempTarget | null = !tempEdit
     ? null
     : tempEdit.kind === 'bed'
-      ? { label: 'Bed', current: tempEdit.current, presets: [50, 60, 70, 80, 100], max: isKlipper ? 120 : 75 }
+      ? { label: t('dashboard.bed'), current: tempEdit.current, presets: [50, 60, 70, 80, 100], max: isKlipper ? 120 : 75 }
       : {
           label: tempEdit.label,
           current: tempEdit.current,
@@ -240,26 +242,31 @@ export default function PrinterDashboardScreen() {
       {state?.isActive && state.job && (
         <Card style={{ gap: 10 }}>
           <Text style={styles.fileName} numberOfLines={1}>
-            {state.job.fileName || 'Printing'}
+            {state.job.fileName || t('dashboard.printingFile')}
           </Text>
           <ProgressBar pct={state.job.progressPct} />
           <View style={styles.jobRow}>
             <Text style={styles.muted}>{state.job.progressPct}%</Text>
             {state.job.etaEpochMs !== undefined && (
               <Text style={styles.muted}>
-                ETA {formatClock(state.job.etaEpochMs)} ·{' '}
-                {formatDuration(state.job.remainingSec ?? 0)} left
+                {t('dashboard.eta', {
+                  time: formatClock(state.job.etaEpochMs),
+                  left: formatDuration(state.job.remainingSec ?? 0),
+                })}
               </Text>
             )}
           </View>
           {state.job.totalLayers ? (
             <Text style={styles.muted}>
-              Layer {state.job.currentLayer ?? 0} / {state.job.totalLayers}
+              {t('dashboard.layer', {
+                current: state.job.currentLayer ?? 0,
+                total: state.job.totalLayers,
+              })}
             </Text>
           ) : null}
           {state.aiFailureScore !== undefined && (
             <Text style={[styles.muted, { color: aiColor(state.aiFailureScore) }]}>
-              AI failure check: {Math.round(state.aiFailureScore * 100)}%
+              {t('dashboard.aiCheck', { pct: Math.round(state.aiFailureScore * 100) })}
             </Text>
           )}
         </Card>
@@ -267,9 +274,10 @@ export default function PrinterDashboardScreen() {
 
       {state && (
         <Card style={{ gap: 12 }}>
-          <Text style={styles.sectionTitle}>Temperatures</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.temperatures')}</Text>
           {extruders.map((e) => {
-            const label = extruders.length > 1 ? e.label : 'Nozzle';
+            const label =
+              extruders.length > 1 ? t('dashboard.nozzleN', { n: e.index + 1 }) : t('dashboard.nozzle');
             return (
               <TempRow
                 key={`e${e.index}`}
@@ -288,7 +296,7 @@ export default function PrinterDashboardScreen() {
           })}
           {bed && (
             <TempRow
-              label="Bed"
+              label={t('dashboard.bed')}
               actual={bed.actual}
               target={bed.target}
               onEdit={
@@ -298,19 +306,20 @@ export default function PrinterDashboardScreen() {
               }
             />
           )}
-          {chamber && <TempRow label="Chamber" actual={chamber.actual} target={chamber.target} />}
+          {chamber && <TempRow label={t('dashboard.chamber')} actual={chamber.actual} target={chamber.target} />}
         </Card>
       )}
 
-      {cfs && <FilamentSystemCard cfs={cfs} />}
+      {cfs && <FilamentSystemCard cfs={cfs} t={t} />}
 
       {moonraker && fans.length > 0 && (
         <Card style={{ gap: 12 }}>
-          <Text style={styles.sectionTitle}>Fans</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.fans')}</Text>
           {fans.map((f) => (
             <FanRow
               key={f.key}
               fan={f}
+              t={t}
               onSet={(pct) => runOptimistic(setOptimisticFans, f.key, pct, () => moonraker.setFanSpeed(f.key, pct))}
             />
           ))}
@@ -319,7 +328,7 @@ export default function PrinterDashboardScreen() {
 
       {state && client && state.capabilities.canSetLight && state.lights.length > 0 && (
         <Card style={{ gap: 12 }}>
-          <Text style={styles.sectionTitle}>Lights</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.lights')}</Text>
           {state.lights.map((l) => (
             <View key={l.name} style={styles.tempRow}>
               <Text style={styles.tempLabel}>{prettyLightName(l.name)}</Text>
@@ -338,19 +347,21 @@ export default function PrinterDashboardScreen() {
         <View style={styles.controls}>
           {state.capabilities.canPause && (
             <Button
-              label="Pause"
-              onPress={() => confirmAction('Pause print?', 'Pause', false, () => client.pause())}
+              label={t('dashboard.pause')}
+              onPress={() =>
+                confirmAction(t('dashboard.pauseConfirm'), t('dashboard.pause'), false, () => client.pause())
+              }
             />
           )}
           {state.capabilities.canResume && (
-            <Button label="Resume" variant="primary" onPress={() => runAction(() => client.resume())} />
+            <Button label={t('dashboard.resume')} variant="primary" onPress={() => runAction(() => client.resume())} />
           )}
           {state.capabilities.canCancel && (
             <Button
-              label="Cancel"
+              label={t('dashboard.cancelPrint')}
               variant="danger"
               onPress={() =>
-                confirmAction('Cancel print?', 'Cancel print', true, () => client.cancel())
+                confirmAction(t('dashboard.cancelConfirm'), t('dashboard.cancelPrint'), true, () => client.cancel())
               }
             />
           )}
@@ -387,6 +398,7 @@ function CameraSelector({
 }
 
 function ConnectionBanner({ state, error }: { state?: PrinterState; error?: Error }) {
+  const { t } = useTranslation();
   if (error) {
     return (
       <Card style={{ borderColor: colors.danger }}>
@@ -397,14 +409,14 @@ function ConnectionBanner({ state, error }: { state?: PrinterState; error?: Erro
   if (!state) {
     return (
       <Card>
-        <Text style={styles.muted}>Connecting…</Text>
+        <Text style={styles.muted}>{t('common.connecting')}</Text>
       </Card>
     );
   }
   return (
     <Card style={styles.statusRow}>
       <View style={[styles.statusDot, { backgroundColor: dotColor(state) }]} />
-      <Text style={styles.statusText}>{state.connection}</Text>
+      <Text style={styles.statusText}>{t(`status.${state.connection}`)}</Text>
       {state.platformVersion ? <Text style={styles.muted}>{state.platformVersion}</Text> : null}
     </Card>
   );
@@ -467,15 +479,17 @@ function aiColor(score: number): string {
 
 const FAN_PRESETS = [0, 25, 50, 75, 100];
 
-function FanRow({ fan, onSet }: { fan: Fan; onSet: (pct: number) => void }) {
+function FanRow({ fan, onSet, t }: { fan: Fan; onSet: (pct: number) => void; t: Translator['t'] }) {
   // The shown speed snaps to the nearest preset so the active chip lines up.
   const nearest = FAN_PRESETS.reduce((a, b) =>
     Math.abs(b - fan.speedPct) < Math.abs(a - fan.speedPct) ? b : a,
   );
+  // The part-cooling fan has a translatable name; generic fans keep their id.
+  const label = fan.key === 'fan' ? t('dashboard.partCooling') : fan.label;
   return (
     <View style={{ gap: 8 }}>
       <View style={styles.tempRow}>
-        <Text style={styles.tempLabel}>{fan.label}</Text>
+        <Text style={styles.tempLabel}>{label}</Text>
         <Text style={styles.tempValue}>{fan.speedPct}%</Text>
       </View>
       {fan.settable && (
@@ -489,7 +503,7 @@ function FanRow({ fan, onSet }: { fan: Fan; onSet: (pct: number) => void }) {
                 style={[styles.fanChip, on && styles.fanChipActive]}
               >
                 <Text style={[styles.fanChipText, on && styles.fanChipTextActive]}>
-                  {p === 0 ? 'Off' : `${p}%`}
+                  {p === 0 ? t('common.off') : `${p}%`}
                 </Text>
               </Pressable>
             );
@@ -500,25 +514,25 @@ function FanRow({ fan, onSet }: { fan: Fan; onSet: (pct: number) => void }) {
   );
 }
 
-function FilamentSystemCard({ cfs }: { cfs: FilamentSystem }) {
+function FilamentSystemCard({ cfs, t }: { cfs: FilamentSystem; t: Translator['t'] }) {
   const trays = cfs.units.flatMap((u) => u.trays);
   if (trays.length === 0) return null;
   return (
     <Card style={{ gap: 12 }}>
       <View style={styles.cfsHeader}>
-        <Text style={styles.sectionTitle}>Filament</Text>
-        {cfs.autoRefill && <Text style={styles.muted}>Auto-refill</Text>}
+        <Text style={styles.sectionTitle}>{t('dashboard.filament')}</Text>
+        {cfs.autoRefill && <Text style={styles.muted}>{t('dashboard.autoRefill')}</Text>}
       </View>
       <View style={styles.cfsGrid}>
-        {trays.map((t) => (
-          <FilamentSlot key={t.trayId} tray={t} />
+        {trays.map((tray) => (
+          <FilamentSlot key={tray.trayId} tray={tray} t={t} />
         ))}
       </View>
     </Card>
   );
 }
 
-function FilamentSlot({ tray }: { tray: FilamentTray }) {
+function FilamentSlot({ tray, t }: { tray: FilamentTray; t: Translator['t'] }) {
   const { filament, active, present } = tray;
   return (
     <View style={[styles.cfsSlot, active && styles.cfsSlotActive, !present && styles.cfsSlotEmpty]}>
@@ -529,12 +543,12 @@ function FilamentSlot({ tray }: { tray: FilamentTray }) {
         ]}
       />
       <View style={{ flex: 1 }}>
-        <Text style={styles.cfsSlotLabel}>Slot {tray.trayId + 1}</Text>
+        <Text style={styles.cfsSlotLabel}>{t('dashboard.slotN', { n: tray.trayId + 1 })}</Text>
         <Text style={styles.muted} numberOfLines={1}>
-          {present ? filament.material || 'Filament' : 'Empty'}
+          {present ? filament.material || t('dashboard.filament') : t('dashboard.empty')}
         </Text>
       </View>
-      {active && <Text style={styles.cfsActiveTag}>Active</Text>}
+      {active && <Text style={styles.cfsActiveTag}>{t('dashboard.active')}</Text>}
     </View>
   );
 }

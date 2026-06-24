@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { OctoEverywhereClient, mapCanvas } from '../core/octoeverywhere';
-import type { FilamentSystem } from '../core/model/printer';
+import { OctoEverywhereClient, mapCanvas, type FilamentSystem } from '@teleforge/core';
 
 /** Last-known filament system per base URL — see the note in usePrinterStatus. */
 const cfsCache = new Map<string, FilamentSystem>();

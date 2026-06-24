@@ -1,13 +1,13 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { renderHook, waitFor } from '@testing-library/react-native';
-import type { RawCanvasResult } from '../../core/octoeverywhere';
+import type { RawCanvasResult } from '@teleforge/core';
 import { useFilamentSystem } from '../useFilamentSystem';
 
 const mockGetCanvasInfo = jest.fn<() => Promise<RawCanvasResult | null>>();
 
 // Keep the real mapCanvas; only stub the network client.
-jest.mock('../../core/octoeverywhere', () => ({
-  ...jest.requireActual<typeof import('../../core/octoeverywhere')>('../../core/octoeverywhere'),
+jest.mock('@teleforge/core', () => ({
+  ...jest.requireActual<typeof import('@teleforge/core')>('@teleforge/core'),
   OctoEverywhereClient: jest.fn().mockImplementation(() => ({ getCanvasInfo: mockGetCanvasInfo })),
 }));
 

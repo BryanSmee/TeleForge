@@ -1,11 +1,11 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { renderHook, waitFor } from '@testing-library/react-native';
-import type { MoonrakerTools } from '../../core/moonraker';
+import type { MoonrakerTools } from '@teleforge/core';
 import { useMoonrakerTools } from '../useMoonrakerTools';
 
 const mockGetTools = jest.fn<() => Promise<MoonrakerTools>>();
 
-jest.mock('../../core/moonraker', () => ({
+jest.mock('@teleforge/core', () => ({
   MoonrakerClient: jest.fn().mockImplementation(() => ({ getTools: mockGetTools })),
 }));
 

@@ -12,10 +12,10 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.teleforge.app"
+      "bundleIdentifier": "ovh.smee.teleforge"
     },
     "android": {
-      "package": "com.teleforge.app",
+      "package": "ovh.smee.teleforge",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",

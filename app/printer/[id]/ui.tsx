@@ -3,6 +3,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { WebView } from 'react-native-webview';
 import { usePrintersStore } from '../../../src/store/printers';
+import { useTranslation } from '../../../src/i18n/useTranslation';
 import { colors } from '../../../src/components/ui';
 
 /**
@@ -11,20 +12,21 @@ import { colors } from '../../../src/components/ui';
  */
 export default function PrinterWebUiScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { t } = useTranslation();
   const printer = usePrintersStore((s) => s.printers.find((p) => p.id === id));
   const [loading, setLoading] = useState(true);
 
   if (!printer) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.muted}>This printer no longer exists.</Text>
+        <Text style={styles.muted}>{t('common.printerGone')}</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: `${printer.name} — Web UI` }} />
+      <Stack.Screen options={{ title: `${printer.name} — ${t('nav.webUi')}` }} />
       <WebView
         source={{ uri: printer.baseUrl }}
         style={styles.webview}

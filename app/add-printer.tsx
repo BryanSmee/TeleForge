@@ -3,12 +3,14 @@ import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { usePrintersStore } from '../src/store/printers';
 import { OctoEverywhereClient } from '../src/core/octoeverywhere';
+import { useTranslation } from '../src/i18n/useTranslation';
 import { Button, Card, colors } from '../src/components/ui';
 
 type TestState = { kind: 'idle' | 'testing' } | { kind: 'ok'; name: string } | { kind: 'err'; message: string };
 
 export default function AddPrinterScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const addPrinter = usePrintersStore((s) => s.addPrinter);
 
   const [name, setName] = useState('');
@@ -24,7 +26,7 @@ export default function AddPrinterScreen() {
       const state = await client.getStatus();
       setTest({ kind: 'ok', name: state.platformVersion ?? state.model });
     } catch (e) {
-      setTest({ kind: 'err', message: e instanceof Error ? e.message : 'Connection failed' });
+      setTest({ kind: 'err', message: e instanceof Error ? e.message : t('add.connectionFailed') });
     }
   };
 
@@ -37,7 +39,7 @@ export default function AddPrinterScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Card style={{ gap: 16 }}>
         <View>
-          <Text style={styles.label}>Name</Text>
+          <Text style={styles.label}>{t('add.name')}</Text>
           <TextInput
             style={styles.input}
             placeholder="Centauri Carbon 2"
@@ -48,7 +50,7 @@ export default function AddPrinterScreen() {
         </View>
 
         <View>
-          <Text style={styles.label}>Shared Connection URL</Text>
+          <Text style={styles.label}>{t('add.url')}</Text>
           <TextInput
             style={styles.input}
             placeholder="https://shared-xxxx.octoeverywhere.com"
@@ -57,28 +59,25 @@ export default function AddPrinterScreen() {
             autoCorrect={false}
             keyboardType="url"
             value={url}
-            onChangeText={(t) => {
-              setUrl(t);
+            onChangeText={(next) => {
+              setUrl(next);
               setTest({ kind: 'idle' });
             }}
           />
-          <Text style={styles.hint}>
-            Create one in your OctoEverywhere account (Shared Connections). The URL is a secret —
-            it&apos;s stored in the device secure store.
-          </Text>
+          <Text style={styles.hint}>{t('add.urlHint')}</Text>
         </View>
 
-        {test.kind === 'ok' && <Text style={styles.ok}>✓ Connected to {test.name}</Text>}
+        {test.kind === 'ok' && <Text style={styles.ok}>✓ {t('add.connectedTo', { name: test.name })}</Text>}
         {test.kind === 'err' && <Text style={styles.err}>✗ {test.message}</Text>}
 
         <Button
-          label={test.kind === 'testing' ? 'Testing…' : 'Test connection'}
+          label={test.kind === 'testing' ? t('add.testing') : t('add.testConnection')}
           onPress={runTest}
           disabled={!/^https?:\/\//.test(url.trim()) || test.kind === 'testing'}
         />
       </Card>
 
-      <Button label="Save printer" variant="primary" onPress={save} disabled={!canSave} />
+      <Button label={t('add.save')} variant="primary" onPress={save} disabled={!canSave} />
     </ScrollView>
   );
 }

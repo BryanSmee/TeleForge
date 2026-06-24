@@ -12,6 +12,7 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { Image as ExpoImage } from 'expo-image';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import type { WebcamSource } from '../core/model/printer';
+import { useTranslation } from '../i18n/useTranslation';
 import { colors } from './ui';
 
 // OctoEverywhere caps a relayed MJPEG stream (~2 min); the stream path runs for a
@@ -146,6 +147,7 @@ function PageView({ cam }: { cam: WebcamSource }) {
  * the camera serve stale "recording" frames; this avoids any query string.
  */
 function SnapshotView({ cam, intervalMs }: { cam: WebcamSource; intervalMs: number }) {
+  const { t } = useTranslation();
   const [tick, setTick] = useState(0);
   const [loadedOnce, setLoadedOnce] = useState(false);
   const [errMsg, setErrMsg] = useState<string>();
@@ -184,11 +186,11 @@ function SnapshotView({ cam, intervalMs }: { cam: WebcamSource; intervalMs: numb
             setTick((t) => t + 1);
           }}
         >
-          <Text style={styles.title}>Webcam unavailable</Text>
+          <Text style={styles.title}>{t('webcam.unavailable')}</Text>
           <Text style={styles.muted} numberOfLines={3}>
             {errMsg}
           </Text>
-          <Text style={[styles.muted, { marginTop: 8 }]}>Tap to retry</Text>
+          <Text style={[styles.muted, { marginTop: 8 }]}>{t('common.retry')}</Text>
         </Pressable>
       )}
     </>
@@ -201,6 +203,7 @@ function SnapshotView({ cam, intervalMs }: { cam: WebcamSource; intervalMs: numb
  * rather than navigating the whole view away.
  */
 function MjpegView({ cam }: { cam: WebcamSource }) {
+  const { t } = useTranslation();
   const [streaming, setStreaming] = useState(true);
   const [nonce, setNonce] = useState(0);
   const [status, setStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
@@ -241,8 +244,8 @@ function MjpegView({ cam }: { cam: WebcamSource }) {
   if (!streaming) {
     return (
       <Pressable style={styles.overlayCenter} onPress={restart}>
-        <Text style={styles.title}>Stream paused</Text>
-        <Text style={styles.muted}>Tap to resume</Text>
+        <Text style={styles.title}>{t('webcam.streamPaused')}</Text>
+        <Text style={styles.muted}>{t('webcam.tapResume')}</Text>
       </Pressable>
     );
   }
@@ -269,8 +272,8 @@ function MjpegView({ cam }: { cam: WebcamSource }) {
       )}
       {status === 'error' && (
         <Pressable style={styles.overlayCenter} onPress={restart}>
-          <Text style={styles.title}>Stream unavailable</Text>
-          <Text style={styles.muted}>Tap to retry</Text>
+          <Text style={styles.title}>{t('webcam.streamUnavailable')}</Text>
+          <Text style={styles.muted}>{t('common.retry')}</Text>
         </Pressable>
       )}
     </>

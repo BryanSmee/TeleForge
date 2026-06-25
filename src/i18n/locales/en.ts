@@ -64,6 +64,14 @@ export const en = {
   'dashboard.cancelPrint': 'Cancel print',
   'dashboard.cancelConfirm': 'Cancel print?',
 
+  'motion.title': 'Motion',
+  'motion.home': 'Home all axes',
+  'motion.disabledPrinting': 'Locked while printing',
+  'motion.stepMm': 'Step (mm)',
+  'motion.amountMm': 'Amount (mm)',
+  'motion.extrude': 'Extrude',
+  'motion.retract': 'Retract',
+
   'status.offline': 'Offline',
   'status.connecting': 'Connecting',
   'status.idle': 'Idle',

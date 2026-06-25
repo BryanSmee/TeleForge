@@ -62,6 +62,14 @@ export const fr: Record<TranslationKey, string> = {
   'dashboard.cancelPrint': 'Annuler l’impression',
   'dashboard.cancelConfirm': 'Annuler l’impression ?',
 
+  'motion.title': 'Mouvement',
+  'motion.home': 'Origine tous les axes',
+  'motion.disabledPrinting': 'Verrouillé pendant l’impression',
+  'motion.stepMm': 'Pas (mm)',
+  'motion.amountMm': 'Quantité (mm)',
+  'motion.extrude': 'Extruder',
+  'motion.retract': 'Rétracter',
+
   'status.offline': 'Hors ligne',
   'status.connecting': 'Connexion',
   'status.idle': 'Inactif',

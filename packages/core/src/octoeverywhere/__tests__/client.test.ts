@@ -128,6 +128,47 @@ describe('OctoEverywhereClient command shapes', () => {
     expect(await clientWith(errored).getCanvasInfo()).toBeNull();
   });
 
+  it('POSTs move-axis with Axis/DistanceMm (signed for direction)', async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const fetchImpl = jest.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      return jsonResponse({ Status: 200, Result: null });
+    }) as unknown as typeof fetch;
+
+    await clientWith(fetchImpl).moveAxis('Z', -0.1);
+
+    expect(calls[0].url).toBe(`${BASE}/octoeverywhere-command-api/move-axis`);
+    expect(calls[0].init?.method).toBe('POST');
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({ Axis: 'Z', DistanceMm: -0.1 });
+  });
+
+  it('POSTs home with no body', async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const fetchImpl = jest.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      return jsonResponse({ Status: 200, Result: null });
+    }) as unknown as typeof fetch;
+
+    await clientWith(fetchImpl).home();
+
+    expect(calls[0].url).toBe(`${BASE}/octoeverywhere-command-api/home`);
+    expect(calls[0].init?.method).toBe('POST');
+    expect(calls[0].init?.body).toBeUndefined();
+  });
+
+  it('POSTs extrude with Extruder/DistanceMm (negative retracts)', async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const fetchImpl = jest.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      return jsonResponse({ Status: 200, Result: null });
+    }) as unknown as typeof fetch;
+
+    await clientWith(fetchImpl).extrude(0, -5);
+
+    expect(calls[0].url).toBe(`${BASE}/octoeverywhere-command-api/extrude`);
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({ Extruder: 0, DistanceMm: -5 });
+  });
+
   it('sends the Bearer header when a token is configured', async () => {
     let seen: Record<string, string> | undefined;
     const fetchImpl = jest.fn(async (_url: string | URL | Request, init?: RequestInit) => {

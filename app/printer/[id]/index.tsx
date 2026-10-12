@@ -17,6 +17,7 @@ import type {
 import { Button, Card, ProgressBar, colors } from '../../../src/components/ui';
 import { WebcamView } from '../../../src/components/WebcamView';
 import { SetTempModal, type SetTempTarget } from '../../../src/components/SetTempModal';
+import { MotionControls } from '../../../src/components/MotionControls';
 import { useTranslation, type Translator } from '../../../src/i18n/useTranslation';
 import { formatClock, formatDuration } from '../../../src/lib/format';
 
@@ -338,6 +339,22 @@ export default function PrinterDashboardScreen() {
             </View>
           ))}
         </Card>
+      )}
+
+      {state && client && (state.capabilities.canMove || state.capabilities.canHome) && (
+        <MotionControls
+          t={t}
+          canMove={state.capabilities.canMove}
+          canHome={state.capabilities.canHome}
+          disabled={state.isActive}
+          extruders={extruders.map((e) => ({
+            index: e.index,
+            label: extruders.length > 1 ? t('dashboard.nozzleN', { n: e.index + 1 }) : t('dashboard.nozzle'),
+          }))}
+          onHome={() => runAction(() => client.home())}
+          onMove={(axis, distance) => runAction(() => client.moveAxis(axis, distance))}
+          onExtrude={(ext, distance) => runAction(() => client.extrude(ext, distance))}
+        />
       )}
 
       <SetTempModal target={tempTarget} onSet={applyTemp} onClose={() => setTempEdit(null)} />

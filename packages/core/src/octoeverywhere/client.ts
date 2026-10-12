@@ -122,6 +122,29 @@ export class OctoEverywhereClient {
     });
   }
 
+  // --- motion ---
+
+  /** Home all axes. The plugin homes everything (no per-axis selection). */
+  home(): Promise<void> {
+    return this.commandVoid('home', 'POST');
+  }
+
+  /**
+   * Jog one axis by a signed distance in millimetres (relative move). Negative
+   * distances move toward the origin. Feedrate is chosen by the plugin/firmware.
+   */
+  moveAxis(axis: 'X' | 'Y' | 'Z', distanceMm: number): Promise<void> {
+    return this.commandVoid('move-axis', 'POST', { Axis: axis, DistanceMm: distanceMm });
+  }
+
+  /**
+   * Extrude (positive distance) or retract (negative) on a tool, in millimetres.
+   * The firmware refuses to extrude below the hotend's min-extrude temperature.
+   */
+  extrude(extruder: number, distanceMm: number): Promise<void> {
+    return this.commandVoid('extrude', 'POST', { Extruder: extruder, DistanceMm: distanceMm });
+  }
+
   // --- internals ---
 
   private async commandVoid(path: string, method: 'GET' | 'POST', body?: unknown): Promise<void> {

@@ -20,6 +20,8 @@ The list of things to implement (that I know) are missing:
  - File explorer on the CC2 (the U1 lists gcodes + start/restart via Moonraker; CC2 file ops need raw MQTT)
  - More languages (en + fr ship today; add locales under `src/i18n/locales`)
  - Controls (the model + OE API already support these; UI is what's missing)
+    - Motion controls (home / move axis / extrude) — DONE via OE `home`/`move-axis`/
+      `extrude`, gated by `canMove`/`canHome` (see `MotionControls`)
     - Fan speed on the CC2 (raw MQTT — the U1 part-cooling/generic fans are done via Moonraker)
 
 
@@ -34,7 +36,6 @@ The list of things to implement (that I know) are missing:
  - Console
  - gcode viewer
  - Spoolman integration
- - Motion controls (home / move axis / extrude)
  - Smoother fullscreen webcam via WebRTC (camera-streamer / go2rtc)
  - NativeWind styling pass
  - App Connection portal — OAuth-style login for a published, multi-user app (see octoeverywhere-auth.md)
@@ -42,6 +43,10 @@ The list of things to implement (that I know) are missing:
 
 ## Tech debt / infra
 
- - Extract `packages/core` into a workspace (reusable by a future web client)
- - Broaden UI/component test coverage (hooks + SetTempModal/Button covered via @testing-library/react-native; screens with expo-router/store wiring still untested)
+ - `packages/core` is extracted as a path-aliased `@teleforge/core` package
+   (tsconfig paths + jest moduleNameMapper + Metro `extraNodeModules`). Promote
+   to a real bun workspace once a web client consumes it — note bun's
+   `workspaces` key flipped the install to isolated linking and broke the flat
+   node_modules, so that migration needs care.
+ - Broaden UI/component test coverage (hooks + SetTempModal/Button/MotionControls covered via @testing-library/react-native; screens with expo-router/store wiring still untested)
  - `expo export` + bun: bun hoists `ws@7` where Metro's dev server needs `ws@8` (a temporary `ws` override works; `expo start` is unaffected)

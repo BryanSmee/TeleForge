@@ -79,3 +79,50 @@ describe('printers store', () => {
     expect(JSON.parse(mockMem.get(STORAGE_KEY)!)).toHaveLength(1);
   });
 });
+
+describe('printers store — LAN URL', () => {
+  it('loads configs saved without a LAN URL', async () => {
+    mockMem.set(
+      STORAGE_KEY,
+      JSON.stringify([{ id: 'p_x', name: 'U1', baseUrl: 'https://shared-u1.octoeverywhere.com' }]),
+    );
+    await usePrintersStore.getState().hydrate();
+    expect(usePrintersStore.getState().getPrinter('p_x')?.lanUrl).toBeUndefined();
+  });
+
+  it('adds a printer with a normalized LAN URL, and omits a blank one', async () => {
+    const a = await usePrintersStore.getState().addPrinter({
+      name: 'A',
+      baseUrl: 'https://a.octoeverywhere.com',
+      lanUrl: ' http://192.168.1.50/ ',
+    });
+    expect(a.lanUrl).toBe('http://192.168.1.50');
+
+    const b = await usePrintersStore.getState().addPrinter({
+      name: 'B',
+      baseUrl: 'https://b.octoeverywhere.com',
+      lanUrl: '  ',
+    });
+    expect('lanUrl' in b).toBe(false);
+  });
+
+  it('sets, edits and clears the LAN URL, persisting each change', async () => {
+    const p = await usePrintersStore.getState().addPrinter({ name: 'U1', baseUrl: 'https://a.octoeverywhere.com' });
+    const stored = () => JSON.parse(mockMem.get(STORAGE_KEY)!)[0];
+
+    await usePrintersStore.getState().updatePrinter(p.id, { lanUrl: 'http://192.168.1.50/' });
+    expect(usePrintersStore.getState().getPrinter(p.id)?.lanUrl).toBe('http://192.168.1.50');
+    expect(stored().lanUrl).toBe('http://192.168.1.50');
+
+    await usePrintersStore.getState().updatePrinter(p.id, { lanUrl: 'http://u1.local' });
+    expect(stored().lanUrl).toBe('http://u1.local');
+
+    // A patch without lanUrl leaves it alone.
+    await usePrintersStore.getState().updatePrinter(p.id, { name: 'Renamed' });
+    expect(stored().lanUrl).toBe('http://u1.local');
+
+    await usePrintersStore.getState().updatePrinter(p.id, { lanUrl: '' });
+    expect(usePrintersStore.getState().getPrinter(p.id)?.lanUrl).toBeUndefined();
+    expect('lanUrl' in stored()).toBe(false);
+  });
+});

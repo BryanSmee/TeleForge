@@ -1,3 +1,4 @@
+import type { PrinterControl } from '../control';
 import type { PrinterState, WebcamSource } from '../model/printer';
 import { OctoEverywhereError, isRelayErrorStatus } from './errors';
 import { mapStatus } from './mapStatus';
@@ -40,7 +41,7 @@ export interface OctoEverywhereClientOptions {
  * Thin client over the OctoEverywhere normalized command API. Works the same
  * for the CC2 (MQTT under the hood) and the U1 (Moonraker) — OE normalizes both.
  */
-export class OctoEverywhereClient {
+export class OctoEverywhereClient implements PrinterControl {
   private readonly base: string;
   private readonly bearerToken?: string;
   private readonly fetchImpl: typeof fetch;

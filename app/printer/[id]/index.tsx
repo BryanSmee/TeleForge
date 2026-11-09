@@ -5,7 +5,9 @@ import { usePrintersStore } from '../../../src/store/printers';
 import { usePrinterStatus } from '../../../src/hooks/usePrinterStatus';
 import { useMoonrakerTools } from '../../../src/hooks/useMoonrakerTools';
 import { useFilamentSystem } from '../../../src/hooks/useFilamentSystem';
-import { OctoEverywhereClient, MoonrakerClient } from '@teleforge/core';
+import { useEndpoint } from '../../../src/hooks/useEndpoint';
+import { controlFor, type Endpoint } from '../../../src/lib/endpoint';
+import { MoonrakerClient } from '@teleforge/core';
 import type {
   Fan,
   Filament,
@@ -40,25 +42,30 @@ export default function PrinterDashboardScreen() {
   const [optimisticFans, setOptimisticFans] = useState<Record<string, number>>({});
   const [optimisticTemps, setOptimisticTemps] = useState<Record<string, number>>({});
 
-  const { state, error, refresh } = usePrinterStatus(printer?.baseUrl);
-  const client = useMemo(
-    () => (printer ? new OctoEverywhereClient({ baseUrl: printer.baseUrl }) : undefined),
-    [printer],
-  );
+  // LAN when the printer's LAN URL answers, else the OE relay (see useEndpoint).
+  const { endpoint, recheck } = useEndpoint(printer);
+  const { state, error, refresh } = usePrinterStatus(endpoint);
+  const client = useMemo(() => (endpoint ? controlFor(endpoint) : undefined), [endpoint]);
+
+  // A failing LAN request usually means we left the network: re-probe now
+  // rather than waiting for the next periodic check, to fall back sooner.
+  useEffect(() => {
+    if (error && endpoint?.kind === 'lan') recheck();
+  }, [error, endpoint?.kind, recheck]);
 
   // The U1 has 4 nozzles; OE status only carries one. Pull the full set from
   // Moonraker — OE reports a useless platform version ("1.0.0") for Moonraker,
   // so enable for any non-CC2 printer (the query no-ops if it isn't Moonraker).
   const isKlipper = !!state && state.model !== 'cc2';
-  const tools = useMoonrakerTools(printer?.baseUrl, isKlipper);
+  const tools = useMoonrakerTools(endpoint?.url, isKlipper);
   // The CC2's combo unit (4 trays → 1 extruder) isn't in OE's normalized status;
-  // pull it from the raw MQTT passthrough (CC2 only).
+  // pull it from the raw MQTT passthrough (CC2 only, so always via the relay).
   const cfs = useFilamentSystem(printer?.baseUrl, state?.model === 'cc2');
   // Klipper temp-setting goes straight to Moonraker (OE's set-temp ignores the
   // tool number, so it can't target a specific nozzle).
   const moonraker = useMemo(
-    () => (printer && isKlipper ? new MoonrakerClient({ baseUrl: printer.baseUrl }) : undefined),
-    [printer, isKlipper],
+    () => (endpoint && isKlipper ? new MoonrakerClient({ baseUrl: endpoint.url }) : undefined),
+    [endpoint, isKlipper],
   );
 
   // Webcams must come from list-webcam (status omits the stream/snapshot URLs).
@@ -204,13 +211,14 @@ export default function PrinterDashboardScreen() {
         }}
       />
 
-      <ConnectionBanner state={state} error={error} />
+      <ConnectionBanner state={state} error={error} endpoint={endpoint} />
 
       {cam && !fullscreen && (
         <View style={{ gap: 8 }}>
           <WebcamView
             key={camIndex}
             cam={cam}
+            limited={endpoint?.kind !== 'lan'}
             style={styles.webcamPreview}
             onFullscreen={() => setFullscreen(true)}
           />
@@ -231,6 +239,7 @@ export default function PrinterDashboardScreen() {
             <WebcamView
               key={camIndex}
               cam={cam}
+              limited={endpoint?.kind !== 'lan'}
               fullscreen
               style={styles.fullscreenView}
               onClose={() => setFullscreen(false)}
@@ -413,12 +422,29 @@ function CameraSelector({
   );
 }
 
-function ConnectionBanner({ state, error }: { state?: PrinterState; error?: Error }) {
+function ConnectionBanner({
+  state,
+  error,
+  endpoint,
+}: {
+  state?: PrinterState;
+  error?: Error;
+  endpoint?: Endpoint;
+}) {
   const { t } = useTranslation();
+  // Which path the status comes from (LAN / Remote), also shown on errors.
+  const badge = endpoint && (
+    <View style={[styles.pathBadge, endpoint.kind === 'lan' && styles.pathBadgeLan]}>
+      <Text style={[styles.pathBadgeText, endpoint.kind === 'lan' && styles.pathBadgeTextLan]}>
+        {t(endpoint.kind === 'lan' ? 'dashboard.pathLan' : 'dashboard.pathRemote')}
+      </Text>
+    </View>
+  );
   if (error) {
     return (
-      <Card style={{ borderColor: colors.danger }}>
-        <Text style={{ color: colors.danger }}>{error.message}</Text>
+      <Card style={{ ...styles.statusRow, borderColor: colors.danger }}>
+        <Text style={{ color: colors.danger, flex: 1 }}>{error.message}</Text>
+        {badge}
       </Card>
     );
   }
@@ -434,6 +460,7 @@ function ConnectionBanner({ state, error }: { state?: PrinterState; error?: Erro
       <View style={[styles.statusDot, { backgroundColor: dotColor(state) }]} />
       <Text style={styles.statusText}>{t(`status.${state.connection}`)}</Text>
       {state.platformVersion ? <Text style={styles.muted}>{state.platformVersion}</Text> : null}
+      {badge}
     </Card>
   );
 }
@@ -597,6 +624,16 @@ const styles = StyleSheet.create({
   jobRow: { flexDirection: 'row', justifyContent: 'space-between' },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   statusDot: { width: 10, height: 10, borderRadius: 5 },
+  pathBadge: {
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  pathBadgeLan: { borderColor: colors.ok },
+  pathBadgeText: { color: colors.muted, fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+  pathBadgeTextLan: { color: colors.ok },
   statusText: { color: colors.text, fontSize: 16, fontWeight: '600', textTransform: 'capitalize', flex: 1 },
   tempRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   tempLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

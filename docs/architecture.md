@@ -12,6 +12,23 @@
 > per-protocol adapters here apply to the later local-mode and advanced (fan /
 > raw-MQTT) work.
 
+> **LAN mode, as built (Klipper only).** There is no separate `LocalTransport`
+> class: Moonraker's HTTP API has the same paths on the LAN and through the OE
+> relay, so `MoonrakerClient` *is* the local transport + adapter. A printer may
+> carry an optional `lanUrl` (`PrinterConfig`, secure store). `useEndpoint`
+> (`src/hooks/useEndpoint.ts`) probes `<lanUrl>/server/info` with a short
+> timeout (1.5 s), re-probes every 20 s and right after a failed LAN poll, and
+> resolves an `Endpoint` — `{ kind: 'lan', url: lanUrl }` or
+> `{ kind: 'relay', url: baseUrl }`. `controlFor(endpoint)`
+> (`src/lib/endpoint.ts`) returns a shared `PrinterControl`
+> (`packages/core/src/control.ts`): `MoonrakerClient` on the LAN (status mapped
+> by `mapMoonrakerStatus`, webcams from `/server/webcams/list`, commands as
+> Moonraker endpoints / g-code) or `OctoEverywhereClient` on the relay. The
+> dashboard, files and web-UI screens consume that one endpoint; the dashboard
+> shows a "LAN" / "Remote" badge. Relay-only features (OE's AI failure score,
+> the CC2's MQTT passthrough) stay on the relay; the CC2 over LAN (raw MQTT) is
+> a later step.
+
 ## 1. Layered overview
 
 ```
@@ -240,7 +257,9 @@ render  <connUrl>/oe-webcam-stream  (+ index via oe-webcam-index / ?index=)
   live stream for the window, then **pause and prompt "still watching?"** — never
   auto-reconnect in a loop. Use **snapshot polling** for the dashboard/idle view
   and reserve the live MJPEG stream for active viewing.
-- **Local mode (later):** direct `http://<cc2-ip>:8080/?action=stream`, or go2rtc
+- **Local mode:** Klipper printers on the LAN use the cameras Moonraker lists
+  (`/server/webcams/list`), with no stream cap. For the CC2 (later): direct
+  `http://<cc2-ip>:8080/?action=stream`, or go2rtc
   WebRTC via `react-native-webrtc` (needs a Dev Client) for low latency.
 
 A `WebcamSource` is therefore derived from `list-webcam` per printer; the app

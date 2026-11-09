@@ -45,6 +45,7 @@ export function WebcamView({
   style,
   fullscreen = false,
   mode = 'stream',
+  limited = true,
   onFullscreen,
   onClose,
 }: {
@@ -53,6 +54,11 @@ export function WebcamView({
   fullscreen?: boolean;
   /** Defaults to the MJPEG stream; snapshot is for local LAN / the future toggle. */
   mode?: WebcamMode;
+  /**
+   * Whether the stream goes through the OE relay and so must pause before its
+   * ~2-min cap. False on the LAN, where the stream runs until closed.
+   */
+  limited?: boolean;
   onFullscreen?: () => void;
   onClose?: () => void;
 }) {
@@ -112,7 +118,7 @@ export function WebcamView({
       ) : useSnapshot ? (
         <SnapshotView cam={cam} intervalMs={1000} />
       ) : (
-        <MjpegView cam={cam} />
+        <MjpegView cam={cam} limited={limited} />
       )}
       {controls}
     </View>
@@ -202,7 +208,7 @@ function SnapshotView({ cam, intervalMs }: { cam: WebcamSource; intervalMs: numb
  * QuickCam). Rendered inside an <img> so a relay redirect fails the image
  * rather than navigating the whole view away.
  */
-function MjpegView({ cam }: { cam: WebcamSource }) {
+function MjpegView({ cam, limited }: { cam: WebcamSource; limited: boolean }) {
   const { t } = useTranslation();
   const [streaming, setStreaming] = useState(true);
   const [nonce, setNonce] = useState(0);
@@ -210,10 +216,10 @@ function MjpegView({ cam }: { cam: WebcamSource }) {
   const liveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
-    if (!streaming) return;
+    if (!streaming || !limited) return;
     const timer = setTimeout(() => setStreaming(false), STREAM_WINDOW_MS);
     return () => clearTimeout(timer);
-  }, [streaming, nonce]);
+  }, [streaming, limited, nonce]);
 
   useEffect(() => {
     if (!streaming) return;

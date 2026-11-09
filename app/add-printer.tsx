@@ -17,7 +17,7 @@ export default function AddPrinterScreen() {
   const [url, setUrl] = useState('');
   const [test, setTest] = useState<TestState>({ kind: 'idle' });
 
-  const canSave = name.trim().length > 0 && /^https?:\/\//.test(url.trim());
+  const canSave = name.trim().length > 0 && /^https:\/\//.test(url.trim());
 
   const runTest = async () => {
     setTest({ kind: 'testing' });
@@ -73,7 +73,7 @@ export default function AddPrinterScreen() {
         <Button
           label={test.kind === 'testing' ? t('add.testing') : t('add.testConnection')}
           onPress={runTest}
-          disabled={!/^https?:\/\//.test(url.trim()) || test.kind === 'testing'}
+          disabled={!/^https:\/\//.test(url.trim()) || test.kind === 'testing'}
         />
       </Card>
 

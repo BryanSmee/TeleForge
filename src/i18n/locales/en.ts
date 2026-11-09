@@ -39,6 +39,10 @@ export const en = {
   'add.save': 'Save printer',
 
   'settings.urlHint': 'The URL is a secret — stored in the device secure store.',
+  'settings.lanUrl': 'LAN URL (optional)',
+  'settings.lanUrlHint':
+    'Klipper printers only. When this address answers (e.g. at home), the app talks to Moonraker directly instead of going through OctoEverywhere. Use the address you open Mainsail/Fluidd at (e.g. http://192.168.1.50), not Moonraker’s port 7125, so webcams and the web UI work too. Leave empty to always use the relay.',
+  'settings.lanUrlInvalid': 'Must start with http:// or https://',
   'settings.removePrinter': 'Remove printer',
 
   'dashboard.temperatures': 'Temperatures',
@@ -63,6 +67,8 @@ export const en = {
   'dashboard.resume': 'Resume',
   'dashboard.cancelPrint': 'Cancel print',
   'dashboard.cancelConfirm': 'Cancel print?',
+  'dashboard.pathLan': 'LAN',
+  'dashboard.pathRemote': 'Remote',
 
   'motion.title': 'Motion',
   'motion.home': 'Home all axes',

@@ -1,0 +1,31 @@
+# Install dependencies from the lockfile, as CI does (ci.yml:20); bun comes from the image.
+setup: bun install --frozen-lockfile
+
+# Bun's package cache (~670 MB), so installs take seconds.
+caches:
+  - /home/node/.bun/install/cache
+
+# Bun 1.3.11 on PATH, the version CI pins (ci.yml:17); needs the `dockerfile` grant.
+dockerfile: .deckhand/Dockerfile
+
+# Container engine for Android builds (docker/android.Dockerfile); cache keeps the
+# multi-GB SDK image and Gradle volume between runs. Needs the `docker` grant.
+docker:
+  cache: true
+
+# At most 2 runs of this repo at once, to leave the machine's resources for the rest.
+max_parallel: 2
+
+# How to run the checks and the Android build.
+instructions: .deckhand/instructions.md
+
+# Review each pull request once it is ready; a review requesting changes starts a fix run,
+# up to 3 rounds.
+review:
+  on: ready
+  fix: 3
+
+# Each comment on these issues becomes an issue of its own (an idea or a bug report).
+inbox:
+  ideas: 28
+  bugs: 29

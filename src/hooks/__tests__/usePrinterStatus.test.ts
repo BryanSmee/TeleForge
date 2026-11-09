@@ -5,10 +5,12 @@ import { usePrinterStatus } from '../usePrinterStatus';
 
 const mockGetStatus = jest.fn<() => Promise<PrinterState>>();
 const mockLanGetStatus = jest.fn<() => Promise<PrinterState>>();
+const mockCc2GetStatus = jest.fn<() => Promise<PrinterState>>();
 
 jest.mock('@teleforge/core', () => ({
   OctoEverywhereClient: jest.fn().mockImplementation(() => ({ getStatus: mockGetStatus })),
   MoonrakerClient: jest.fn().mockImplementation(() => ({ getStatus: mockLanGetStatus })),
+  Cc2LanClient: jest.fn().mockImplementation(() => ({ getStatus: mockCc2GetStatus })),
 }));
 
 const relay = (url: string) => ({ kind: 'relay' as const, url });
@@ -37,6 +39,7 @@ function sampleState(model: PrinterState['model'] = 'cc2'): PrinterState {
 beforeEach(() => {
   mockGetStatus.mockReset();
   mockLanGetStatus.mockReset();
+  mockCc2GetStatus.mockReset();
 });
 
 describe('usePrinterStatus', () => {
@@ -48,6 +51,17 @@ describe('usePrinterStatus', () => {
     const { result } = await renderHook(() => usePrinterStatus(undefined, LONG));
     expect(result.current.state).toBeUndefined();
     expect(mockGetStatus).not.toHaveBeenCalled();
+    expect(mockLanGetStatus).not.toHaveBeenCalled();
+  });
+
+  it('reads the CC2’s MQTT session on a CC2 LAN endpoint', async () => {
+    mockCc2GetStatus.mockResolvedValue(sampleState('cc2'));
+    const { result } = await renderHook(() =>
+      usePrinterStatus({ kind: 'lan', url: 'http://192.168.1.240', protocol: 'cc2' }, LONG),
+    );
+
+    await waitFor(() => expect(result.current.state?.model).toBe('cc2'));
+    expect(mockCc2GetStatus).toHaveBeenCalledTimes(1);
     expect(mockLanGetStatus).not.toHaveBeenCalled();
   });
 
@@ -92,7 +106,7 @@ describe('usePrinterStatus', () => {
   it('polls Moonraker directly on a LAN endpoint', async () => {
     mockLanGetStatus.mockResolvedValue(sampleState('klipper'));
     const { result } = await renderHook(() =>
-      usePrinterStatus({ kind: 'lan', url: 'http://192.168.1.50' }, LONG),
+      usePrinterStatus({ kind: 'lan', url: 'http://192.168.1.50', protocol: 'moonraker' }, LONG),
     );
 
     await waitFor(() => expect(result.current.state?.model).toBe('klipper'));

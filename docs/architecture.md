@@ -12,22 +12,33 @@
 > per-protocol adapters here apply to the later local-mode and advanced (fan /
 > raw-MQTT) work.
 
-> **LAN mode, as built (Klipper only).** There is no separate `LocalTransport`
-> class: Moonraker's HTTP API has the same paths on the LAN and through the OE
-> relay, so `MoonrakerClient` *is* the local transport + adapter. A printer may
-> carry an optional `lanUrl` (`PrinterConfig`, secure store). `useEndpoint`
-> (`src/hooks/useEndpoint.ts`) probes `<lanUrl>/server/info` with a short
-> timeout (1.5 s), re-probes every 20 s and right after a failed LAN poll, and
-> resolves an `Endpoint` — `{ kind: 'lan', url: lanUrl }` or
-> `{ kind: 'relay', url: baseUrl }`. `controlFor(endpoint)`
-> (`src/lib/endpoint.ts`) returns a shared `PrinterControl`
-> (`packages/core/src/control.ts`): `MoonrakerClient` on the LAN (status mapped
-> by `mapMoonrakerStatus`, webcams from `/server/webcams/list`, commands as
-> Moonraker endpoints / g-code) or `OctoEverywhereClient` on the relay. The
-> dashboard, files and web-UI screens consume that one endpoint; the dashboard
-> shows a "LAN" / "Remote" badge. Relay-only features (OE's AI failure score,
-> the CC2's MQTT passthrough) stay on the relay; the CC2 over LAN (raw MQTT) is
-> a later step.
+> **LAN mode, as built.** There is no separate `LocalTransport` class. A
+> printer may carry an optional `lanUrl` (and, for the CC2, a `lanAccessCode`)
+> in `PrinterConfig` (secure store). `useEndpoint` (`src/hooks/useEndpoint.ts`)
+> calls `probeLan` (`src/lib/endpoint.ts`), which tries Moonraker's
+> `<lanUrl>/server/info` (1.5 s timeout) and the CC2's MQTT broker
+> (`ws://<host>:9001`) side by side, then only the protocol that answered;
+> it re-probes every 20 s and right after a failed LAN poll, and resolves an
+> `Endpoint` — `{ kind: 'lan', url: lanUrl, protocol: 'moonraker' | 'cc2' }` or
+> `{ kind: 'relay', url: baseUrl }`. `controlFor(endpoint)` returns a shared
+> `PrinterControl` (`packages/core/src/control.ts`):
+> - **Klipper:** `MoonrakerClient`, whose HTTP API has the same paths on the
+>   LAN and through the OE relay (status mapped by `mapMoonrakerStatus`,
+>   webcams from `/server/webcams/list`, commands as Moonraker endpoints /
+>   g-code).
+> - **CC2:** `Cc2LanClient` (`packages/core/src/cc2/`), a small MQTT 3.1.1 over
+>   WebSocket client (no native module). One session per printer, opened by the
+>   probe: it registers, keeps a heartbeat, and deep-merges the status deltas
+>   the printer pushes, so `getStatus` answers from memory (`mapCc2Status`).
+>   Commands are the CC2's MQTT methods; the combo/CFS slots (2005) too. The
+>   serial number its topics need is read from the broker's traffic or asked
+>   through the relay. Protocol, topics and payloads: `spike-findings.md`,
+>   "The CC2 over the LAN".
+> - **Relay:** `OctoEverywhereClient`.
+>
+> The dashboard, files and web-UI screens consume that one endpoint; the
+> dashboard shows a "LAN" / "Remote" badge. OE's AI failure score stays
+> relay-only.
 
 ## 1. Layered overview
 
@@ -258,9 +269,10 @@ render  <connUrl>/oe-webcam-stream  (+ index via oe-webcam-index / ?index=)
   auto-reconnect in a loop. Use **snapshot polling** for the dashboard/idle view
   and reserve the live MJPEG stream for active viewing.
 - **Local mode:** Klipper printers on the LAN use the cameras Moonraker lists
-  (`/server/webcams/list`), with no stream cap. For the CC2 (later): direct
-  `http://<cc2-ip>:8080/?action=stream`, or go2rtc
-  WebRTC via `react-native-webrtc` (needs a Dev Client) for low latency.
+  (`/server/webcams/list`), with no stream cap. The CC2 on the LAN uses its
+  MJPEG stream directly (`http://<cc2-ip>:8080/?action=stream`, turned on with
+  MQTT method 1042); go2rtc WebRTC via `react-native-webrtc` (needs a Dev
+  Client) remains an option for lower latency.
 
 A `WebcamSource` is therefore derived from `list-webcam` per printer; the app
 doesn't need printer-specific webcam presets baked in.

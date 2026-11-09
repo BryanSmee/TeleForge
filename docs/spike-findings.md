@@ -219,6 +219,115 @@ TeleForge ── AppToken ──▶│ OctoEverywhereClient             │─�
 - This is a net **simplification**: ship a remote-only MVP against one HTTP API,
   add protocol adapters only when you do LAN mode / fan control.
 
+## The CC2 over the LAN (direct MQTT) — as built
+
+When a CC2 has a LAN URL and its broker answers, TeleForge talks to it directly
+(`Cc2LanClient`, `packages/core/src/cc2/`) instead of through the relay. Sources:
+the community protocol doc (`danielcherubini/elegoo-homeassistant`,
+`docs/CC2_PROTOCOL.md`), OE's own CC2 client (`elegoo_cc2_octoeverywhere/elegoocc2client.py`
+and `elegoocc2commandhandler.py`) and the community firmware
+(`Neme77/centauri-carbon-2-community`, `cc2-control/src/mqtt.c`).
+**Not yet verified against a real CC2 from the app** — `spike/probe-cc2-lan.mjs`
+runs the same handshake read-only.
+
+### Connection
+
+| | |
+|---|---|
+| Broker | the printer itself: MQTT 3.1.1 on **TCP 1883** and **WebSocket 9001** |
+| Used by TeleForge | `ws://<printer-ip>:9001`, subprotocol `mqtt` (React Native has no raw TCP; Elegoo's own web page uses the same port) |
+| Username / password | `elegoo` / the printer's **access code**, or `123456` when none is set |
+| Client id | `0cli` + 6 random hex digits (the web page's format) |
+| Clients | about 4 at once (OE's companion is one) → one shared session per printer in the app |
+| Network mode | documented for the printer's LAN-only mode; cloud mode may expect a PIN instead |
+
+Every topic carries the printer's **serial number** (`elegoo/<sn>/…`). Elegoo's
+tools learn it by UDP discovery (port 52700), which React Native can't send.
+TeleForge instead subscribes to `elegoo/#` right after connecting and reads it
+from the first topic it sees (status pushes, other clients' heartbeats — what
+the community firmware does), racing method 1001 sent **through the relay**
+(`send-command`, `Result.Response.Payload.result.sn`). Once known it stays in
+memory for the session.
+
+### Session
+
+1. Subscribe `elegoo/<sn>/<client_id>_req/register_response`, publish to
+   `elegoo/<sn>/api_register`:
+   ```json
+   { "client_id": "0cli3fa9c1", "request_id": "0cli3fa9c1_req" }
+   ```
+   Reply `{ "client_id": "0cli3fa9c1", "error": "ok" }` — or `"too many clients"`.
+2. Subscribe `elegoo/<sn>/api_status` (pushes) and
+   `elegoo/<sn>/<client_id>/api_response` (replies).
+3. Requests go to `elegoo/<sn>/<client_id>/api_request` as
+   `{ "id": 4242, "method": 1028, "params": { "extruder": 210 } }`; the reply
+   carries the same `id`: `{ "id": 4242, "method": 1028, "result": { "error_code": 0 } }`
+   (non-zero `error_code` = refused).
+4. Heartbeat: publish `{ "type": "PING" }` to the request topic every 10 s; the
+   printer answers `{ "type": "PONG" }`. It drops a client after ~65 s without
+   one. TeleForge drops the session after 30 s without any message (left the
+   LAN) or 60 s unused, and falls back to the relay.
+
+### Status
+
+Method **1002** returns the full status; the printer then pushes **deltas**
+(`method: 6000`, numbered `id`) on `api_status`, deep-merged into it. After
+any gap in the numbering (a delta lost: QoS 0) TeleForge asks for 1002 again,
+at most every 5 s.
+
+```jsonc
+// 1002 result (or the first 6000 push)
+{
+  "error_code": 0,
+  "machine_status": { "status": 2, "sub_status": 2075, "exception_status": [], "progress": 45 },
+  "print_status": {
+    "filename": "benchy.gcode", "uuid": "b52af24c-…", "current_layer": 225, "total_layer": 500,
+    "print_duration": 3600, "total_duration": 8000, "remaining_time_sec": 4400, "progress": 45
+  },
+  "extruder": { "temperature": 215.0, "target": 220, "filament_detected": 1 },
+  "heater_bed": { "temperature": 58.5, "target": 60 },
+  "ztemperature_sensor": { "temperature": 33.0 },   // chamber, read-only ("chamber" on some firmware)
+  "fans": { "fan": { "speed": 255, "rpm": 5000 }, "aux_fan": { "speed": 178 }, "box_fan": { "speed": 25 } },
+  "led": { "status": 1 },
+  "toolhead": { "homed_axes": "xyz" },
+  "external_device": { "camera": true }
+}
+// a later 6000 push: only what changed
+{ "id": 42, "method": 6000, "result": { "print_status": { "current_layer": 230 }, "extruder": { "temperature": 219.5 } } }
+```
+
+`mapCc2Status` follows OE's translation: any `exception_status` or status 14
+(emergency stop) → error; status 2 (printing) with sub-status 2501/2502/2505 →
+paused, 2503/2504 (stopping/stopped) → idle, 2077 → complete, anything else
+(preheating 1045/1405, homing 2801, leveling 2901, resuming 2401, printing 2075)
+→ printing; every other status (1 idle, 0 initializing, 5 leveling, 10 homing,
+3/4 filament loading…) → idle. As through OE, the print fields keep the last
+print's values when idle, so the job is only shown while printing or paused.
+Method **1001** (attributes) gives the version shown on the dashboard:
+
+```json
+{ "error_code": 0, "hostname": "My Printer", "machine_model": "Centauri Carbon 2", "sn": "CC2ABCD1234567890",
+  "ip": "192.168.1.100", "hardware_version": "1.0", "software_version": { "ota_version": "1.0.5.2" } }
+```
+
+### Methods used
+
+| Method | What | `params` |
+|---|---|---|
+| 1001 | attributes (version, serial) | `{}` |
+| 1002 | full status | `{}` |
+| 1021 / 1023 / 1022 | pause / resume / stop | `{}` |
+| 1026 | home | `{ "homed_axes": "xyz" }` |
+| 1027 | jog an axis (relative, mm) | `{ "axes": "z", "distance": -1 }` |
+| 1028 | nozzle / bed target | `{ "extruder": 210, "heater_bed": 60 }` (either) |
+| 1029 | chamber light | `{ "brightness": 255, "power": 1 }` (both: firmware differs, as in OE) |
+| 1042 | turn the camera on | `{ "enable": true }` |
+| 2005 | combo / CFS slots | `{}` (same reply as through `send-command`) |
+
+Not on the CC2, as through OE: setting the chamber temperature, extruding,
+starting a print. The camera is the printer's MJPEG stream at
+`http://<printer-ip>:8080/?action=stream`, with no relay stream cap.
+
 ## Still to verify with a LIVE test (needs your OE account — scripted)
 
 All resolved by the live run above. Remaining optional confirmation:
@@ -239,3 +348,4 @@ All resolved by the live run above. Remaining optional confirmation:
 - [Plugin API overview](https://docs.octoeverywhere.com/plugin-api/)
 - [App Connections](https://docs.octoeverywhere.com/app-connections/) · [Portal](https://docs.octoeverywhere.com/app-connections/portal/) · [APIs overview](https://docs.octoeverywhere.com/app-connections/apis/overview/)
 - [CC2 MQTT protocol reference (community)](https://github.com/danielcherubini/elegoo-homeassistant/blob/main/docs/CC2_PROTOCOL.md)
+- [CC2 community firmware](https://github.com/Neme77/centauri-carbon-2-community) (`cc2-control/src/mqtt.c`: wildcard subscription, serial from topics)

@@ -2,10 +2,11 @@ import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { renderHook, waitFor, act } from '@testing-library/react-native';
 import { useEndpoint } from '../useEndpoint';
 
-const mockProbe = jest.fn<(url: string) => Promise<boolean>>();
+type Probe = (printer: { lanUrl?: string; lanAccessCode?: string }) => Promise<'moonraker' | 'cc2' | undefined>;
+const mockProbe = jest.fn<Probe>();
 
-jest.mock('@teleforge/core', () => ({
-  MoonrakerClient: { probe: (url: string) => mockProbe(url) },
+jest.mock('../../lib/endpoint', () => ({
+  probeLan: (printer: { lanUrl?: string }) => mockProbe(printer),
 }));
 
 const RELAY = 'https://shared-u1.octoeverywhere.com';
@@ -29,16 +30,29 @@ describe('useEndpoint', () => {
   });
 
   it('uses the LAN URL when Moonraker answers there', async () => {
-    mockProbe.mockResolvedValue(true);
+    mockProbe.mockResolvedValue('moonraker');
     const lanUrl = 'http://192.168.1.50';
     const { result } = await renderHook(() => useEndpoint({ baseUrl: RELAY, lanUrl }, LONG));
 
-    await waitFor(() => expect(result.current.endpoint).toEqual({ kind: 'lan', url: lanUrl }));
-    expect(mockProbe).toHaveBeenCalledWith(lanUrl);
+    await waitFor(() =>
+      expect(result.current.endpoint).toEqual({ kind: 'lan', url: lanUrl, protocol: 'moonraker' }),
+    );
+    expect(mockProbe).toHaveBeenCalledWith(expect.objectContaining({ lanUrl }));
+  });
+
+  it('uses the LAN URL when the CC2 answers there over MQTT, with its access code', async () => {
+    mockProbe.mockResolvedValue('cc2');
+    const lanUrl = 'http://192.168.1.240';
+    const { result } = await renderHook(() =>
+      useEndpoint({ baseUrl: RELAY, lanUrl, lanAccessCode: '4242' }, LONG),
+    );
+
+    await waitFor(() => expect(result.current.endpoint).toEqual({ kind: 'lan', url: lanUrl, protocol: 'cc2' }));
+    expect(mockProbe).toHaveBeenCalledWith({ baseUrl: RELAY, lanUrl, lanAccessCode: '4242' });
   });
 
   it('falls back to the relay when the LAN URL does not answer', async () => {
-    mockProbe.mockResolvedValue(false);
+    mockProbe.mockResolvedValue(undefined);
     const { result } = await renderHook(() =>
       useEndpoint({ baseUrl: RELAY, lanUrl: 'http://192.168.1.51' }, LONG),
     );
@@ -46,7 +60,7 @@ describe('useEndpoint', () => {
   });
 
   it('switches back to the relay on recheck after leaving the LAN', async () => {
-    mockProbe.mockResolvedValueOnce(true).mockResolvedValue(false);
+    mockProbe.mockResolvedValueOnce('moonraker').mockResolvedValue(undefined);
     const lanUrl = 'http://192.168.1.52';
     const { result } = await renderHook(() => useEndpoint({ baseUrl: RELAY, lanUrl }, LONG));
     await waitFor(() => expect(result.current.endpoint?.kind).toBe('lan'));
@@ -56,17 +70,17 @@ describe('useEndpoint', () => {
   });
 
   it('re-probes on its own after recheckMs', async () => {
-    mockProbe.mockResolvedValueOnce(false).mockResolvedValue(true);
+    mockProbe.mockResolvedValueOnce(undefined).mockResolvedValue('moonraker');
     const lanUrl = 'http://192.168.1.53';
     const { result } = await renderHook(() =>
       useEndpoint({ baseUrl: RELAY, lanUrl }, { recheckMs: 10 }),
     );
-    await waitFor(() => expect(result.current.endpoint).toEqual({ kind: 'lan', url: lanUrl }));
+    await waitFor(() => expect(result.current.endpoint?.kind).toBe('lan'));
     expect(mockProbe.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
   it('resolves instantly from the last probe on a later mount', async () => {
-    mockProbe.mockResolvedValue(true);
+    mockProbe.mockResolvedValue('moonraker');
     const lanUrl = 'http://192.168.1.54';
     const first = await renderHook(() => useEndpoint({ baseUrl: RELAY, lanUrl }, LONG));
     await waitFor(() => expect(first.result.current.endpoint?.kind).toBe('lan'));
@@ -74,6 +88,6 @@ describe('useEndpoint', () => {
 
     mockProbe.mockImplementation(() => new Promise(() => {})); // never settles
     const second = await renderHook(() => useEndpoint({ baseUrl: RELAY, lanUrl }, LONG));
-    expect(second.result.current.endpoint).toEqual({ kind: 'lan', url: lanUrl });
+    expect(second.result.current.endpoint).toEqual({ kind: 'lan', url: lanUrl, protocol: 'moonraker' });
   });
 });

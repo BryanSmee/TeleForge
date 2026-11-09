@@ -7,7 +7,7 @@
 // so it is safe to run during a print.
 //
 // Needs the `mqtt` package (MQTT-over-WebSocket client):
-//     cd spike && npm i mqtt        # or:  bun add mqtt
+//     cd spike && bun add --no-save mqtt
 //
 // Run (the Shared Connection URL carries its own auth in the subdomain; add
 // OE_BEARER / OE_USER+OE_PASS only if your connection needs it):

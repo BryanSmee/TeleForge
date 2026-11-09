@@ -16,6 +16,7 @@ export default function PrinterSettingsScreen() {
   const [name, setName] = useState(printer?.name ?? '');
   const [url, setUrl] = useState(printer?.baseUrl ?? '');
   const [lanUrl, setLanUrl] = useState(printer?.lanUrl ?? '');
+  const [accessCode, setAccessCode] = useState(printer?.lanAccessCode ?? '');
 
   if (!printer) {
     return (
@@ -29,13 +30,14 @@ export default function PrinterSettingsScreen() {
   const dirty =
     name.trim() !== printer.name ||
     trimUrl(url) !== printer.baseUrl ||
-    trimUrl(lanUrl) !== (printer.lanUrl ?? '');
+    trimUrl(lanUrl) !== (printer.lanUrl ?? '') ||
+    accessCode.trim() !== (printer.lanAccessCode ?? '');
   // The LAN URL is optional: blank clears it.
   const lanValid = lanUrl.trim() === '' || /^https?:\/\//.test(lanUrl.trim());
   const valid = name.trim().length > 0 && /^https:\/\//.test(url.trim()) && lanValid;
 
   const save = async () => {
-    await updatePrinter(printer.id, { name, baseUrl: url, lanUrl });
+    await updatePrinter(printer.id, { name, baseUrl: url, lanUrl, lanAccessCode: accessCode });
     router.back();
   };
 
@@ -88,6 +90,18 @@ export default function PrinterSettingsScreen() {
           />
           {!lanValid && <Text style={styles.error}>{t('settings.lanUrlInvalid')}</Text>}
           <Text style={styles.hint}>{t('settings.lanUrlHint')}</Text>
+        </View>
+        <View>
+          <Text style={styles.label}>{t('settings.lanAccessCode')}</Text>
+          <TextInput
+            style={styles.input}
+            value={accessCode}
+            onChangeText={setAccessCode}
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry
+          />
+          <Text style={styles.hint}>{t('settings.lanAccessCodeHint')}</Text>
         </View>
         <Button label={t('common.save')} variant="primary" onPress={save} disabled={!dirty || !valid} />
       </Card>

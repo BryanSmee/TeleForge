@@ -15,6 +15,11 @@ export interface PrinterConfig {
    * used instead of the relay when it answers — see `useEndpoint`.
    */
   lanUrl?: string;
+  /**
+   * The CC2's access code, when one is set on the printer (its MQTT password on
+   * the LAN; without one the default is used).
+   */
+  lanAccessCode?: string;
 }
 
 const STORAGE_KEY = 'teleforge.printers.v1';
@@ -25,7 +30,7 @@ interface PrintersState {
   /** Load persisted printers from secure storage. Call once on app start. */
   hydrate: () => Promise<void>;
   addPrinter: (input: Omit<PrinterConfig, 'id'>) => Promise<PrinterConfig>;
-  /** Patch a printer. An empty `lanUrl` clears it. */
+  /** Patch a printer. An empty `lanUrl` or `lanAccessCode` clears it. */
   updatePrinter: (id: string, patch: Partial<Omit<PrinterConfig, 'id'>>) => Promise<void>;
   removePrinter: (id: string) => Promise<void>;
   getPrinter: (id: string) => PrinterConfig | undefined;
@@ -56,6 +61,13 @@ function withLanUrl(p: PrinterConfig, lanUrl: string | undefined): PrinterConfig
   return lanUrl ? { ...rest, lanUrl } : rest;
 }
 
+/** Same for the access code (trimmed; blank means "not set"). */
+function withLanAccessCode(p: PrinterConfig, code: string | undefined): PrinterConfig {
+  const { lanAccessCode: _old, ...rest } = p;
+  const trimmed = code?.trim();
+  return trimmed ? { ...rest, lanAccessCode: trimmed } : rest;
+}
+
 export const usePrintersStore = create<PrintersState>((set, get) => ({
   printers: [],
   hydrated: false,
@@ -72,9 +84,12 @@ export const usePrintersStore = create<PrintersState>((set, get) => ({
   },
 
   addPrinter: async (input) => {
-    const printer = withLanUrl(
-      { id: newId(), name: input.name.trim(), baseUrl: normalizeBaseUrl(input.baseUrl) },
-      normalizeOptionalUrl(input.lanUrl),
+    const printer = withLanAccessCode(
+      withLanUrl(
+        { id: newId(), name: input.name.trim(), baseUrl: normalizeBaseUrl(input.baseUrl) },
+        normalizeOptionalUrl(input.lanUrl),
+      ),
+      input.lanAccessCode,
     );
     const printers = [...get().printers, printer];
     set({ printers });
@@ -90,7 +105,8 @@ export const usePrintersStore = create<PrintersState>((set, get) => ({
         ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
         ...(patch.baseUrl !== undefined ? { baseUrl: normalizeBaseUrl(patch.baseUrl) } : {}),
       };
-      return 'lanUrl' in patch ? withLanUrl(next, normalizeOptionalUrl(patch.lanUrl)) : next;
+      const withUrl = 'lanUrl' in patch ? withLanUrl(next, normalizeOptionalUrl(patch.lanUrl)) : next;
+      return 'lanAccessCode' in patch ? withLanAccessCode(withUrl, patch.lanAccessCode) : withUrl;
     });
     set({ printers });
     await persist(printers);

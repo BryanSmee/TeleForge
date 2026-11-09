@@ -126,3 +126,23 @@ describe('printers store — LAN URL', () => {
     expect('lanUrl' in stored()).toBe(false);
   });
 });
+
+describe('printers store — CC2 access code', () => {
+  it('sets, trims and clears the access code, leaving it alone otherwise', async () => {
+    const p = await usePrintersStore
+      .getState()
+      .addPrinter({ name: 'CC2', baseUrl: 'https://c.octoeverywhere.com', lanAccessCode: ' ' });
+    const stored = () => JSON.parse(mockMem.get(STORAGE_KEY)!)[0];
+    expect('lanAccessCode' in stored()).toBe(false);
+
+    await usePrintersStore.getState().updatePrinter(p.id, { lanAccessCode: ' 4242 ' });
+    expect(stored().lanAccessCode).toBe('4242');
+
+    await usePrintersStore.getState().updatePrinter(p.id, { lanUrl: 'http://192.168.1.240' });
+    expect(stored().lanAccessCode).toBe('4242');
+
+    await usePrintersStore.getState().updatePrinter(p.id, { lanAccessCode: '' });
+    expect(usePrintersStore.getState().getPrinter(p.id)?.lanAccessCode).toBeUndefined();
+    expect('lanAccessCode' in stored()).toBe(false);
+  });
+});

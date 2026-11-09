@@ -19,7 +19,8 @@ const statusCache = new Map<string, PrinterState>();
 
 /**
  * Poll a printer's normalized status on an interval, from whichever endpoint
- * `useEndpoint` resolved (Moonraker on the LAN, the OE command API otherwise).
+ * `useEndpoint` resolved (Moonraker or the CC2's MQTT session on the LAN, the OE
+ * command API otherwise).
  *
  * Polls `getStatus` (cheap, uniform across CC2/Klipper). Live webcam streaming
  * is handled separately by the webcam screen, since the OE relay caps stream
@@ -27,6 +28,7 @@ const statusCache = new Map<string, PrinterState>();
  */
 export function usePrinterStatus(endpoint: Endpoint | undefined, intervalMs = 2500): PrinterStatusResult {
   const kind = endpoint?.kind;
+  const protocol = endpoint?.protocol;
   const baseUrl = endpoint?.url;
   // Lazy init from the cache (runs once) so re-opens render instantly without a
   // synchronous setState in the effect (which the react-hooks lint rule flags).
@@ -40,14 +42,14 @@ export function usePrinterStatus(endpoint: Endpoint | undefined, intervalMs = 25
   useEffect(() => {
     if (!kind || !baseUrl) return;
 
-    const client = controlFor({ kind, url: baseUrl });
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
 
     const poll = async () => {
       setLoading(true);
       try {
-        const next = await client.getStatus();
+        // Looked up on each poll: a CC2 client is replaced when its access code changes.
+        const next = await controlFor({ kind, url: baseUrl, protocol }).getStatus();
         statusCache.set(baseUrl, next);
         if (!cancelled) {
           setState(next);
@@ -70,7 +72,7 @@ export function usePrinterStatus(endpoint: Endpoint | undefined, intervalMs = 25
       clearTimeout(timer);
     };
     // `nonce` bumps re-run the effect for a manual refresh.
-  }, [kind, baseUrl, intervalMs, nonce]);
+  }, [kind, baseUrl, protocol, intervalMs, nonce]);
 
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
 

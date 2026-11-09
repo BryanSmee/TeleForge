@@ -72,6 +72,28 @@ describe('Cc2LanClient', () => {
     expect(state.extruders[0]).toMatchObject({ actual: 221.5, target: 220 });
   });
 
+  it('resyncs from a full status after a single missed delta', async () => {
+    const status = { ...STATUS };
+    const broker = new FakeBroker({ status });
+    const client = makeClient(broker);
+    await client.getStatus();
+    const fullStatusRequests = () => broker.requests.filter((r) => r.method === 1002).length;
+    expect(fullStatusRequests()).toBe(1);
+
+    broker.pushStatus(1, { print_status: { progress: 11 } });
+    broker.pushStatus(2, { print_status: { progress: 12 } });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fullStatusRequests()).toBe(1); // in order: no resync
+
+    // Delta 3 (the print ending) is lost; the printer is idle now.
+    status.machine_status = { status: 1, sub_status: 0, exception_status: [], progress: 0 };
+    broker.pushStatus(4, { extruder: { temperature: 200 } });
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(fullStatusRequests()).toBe(2);
+    expect((await client.getStatus()).connection).toBe('idle');
+  });
+
   it('reuses one session for status and commands', async () => {
     const broker = new FakeBroker({ status: STATUS });
     const client = makeClient(broker);
@@ -194,6 +216,18 @@ describe('Cc2LanClient', () => {
     const probing = client.probe();
     await jest.advanceTimersByTimeAsync(2000);
     await expect(probing).resolves.toBe(false);
+  });
+
+  it('never reopens a session once disposed', async () => {
+    const broker = new FakeBroker({ status: STATUS });
+    const client = makeClient(broker);
+    await client.getStatus();
+    client.dispose();
+    await expect(client.getStatus()).rejects.toMatchObject({ kind: 'closed' });
+    await expect(client.probe()).resolves.toBe(false);
+    expect(broker.sockets).toHaveLength(1);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(broker.sockets[0].closed).toBe(true);
   });
 
   it('closes the session after idleMs without use', async () => {

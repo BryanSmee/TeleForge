@@ -62,7 +62,8 @@ Connection can drive the normalized command API for the CC2 remotely.
 Runs the handshake the app's `Cc2LanClient` uses against the printer's own
 broker (`ws://<ip>:9001`): learns the serial number from the broker's traffic,
 registers, then prints the attributes (1001), the full status (1002) and a few
-status pushes. Read-only (queries and heartbeats only). Needs `npm i mqtt`.
+status pushes. Read-only (queries and heartbeats only). Needs the `mqtt` package
+(`cd spike && bun add --no-save mqtt`: nothing is added to the repository).
 
 ```bash
 CC2_IP=192.168.1.240 node spike/probe-cc2-lan.mjs

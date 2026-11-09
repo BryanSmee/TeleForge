@@ -28,16 +28,15 @@ export function useFilamentSystem(
 
   useEffect(() => {
     if (!baseUrl || !enabled) return;
-    const client =
-      protocol === 'cc2'
-        ? (controlFor({ kind: 'lan', url: baseUrl, protocol }) as Cc2LanClient)
-        : new OctoEverywhereClient({ baseUrl });
+    const relay = protocol === 'cc2' ? undefined : new OctoEverywhereClient({ baseUrl });
+    // The LAN client is looked up on each poll: it's replaced when its access code changes.
+    const client = () => relay ?? (controlFor({ kind: 'lan', url: baseUrl, protocol }) as Cc2LanClient);
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
 
     const poll = async () => {
       try {
-        const next = mapCanvas(await client.getCanvasInfo());
+        const next = mapCanvas(await client().getCanvasInfo());
         if (next) cfsCache.set(baseUrl, next);
         if (!cancelled && next) setCfs(next);
       } catch {

@@ -143,10 +143,6 @@ export function encodePuback(packetId: number): Uint8Array {
   return packet(PacketType.PUBACK << 4, [packetId >> 8, packetId & 0xff]);
 }
 
-export function encodePingreq(): Uint8Array {
-  return packet(PacketType.PINGREQ << 4, []);
-}
-
 export function encodeDisconnect(): Uint8Array {
   return packet(PacketType.DISCONNECT << 4, []);
 }

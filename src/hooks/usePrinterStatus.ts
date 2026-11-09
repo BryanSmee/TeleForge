@@ -42,14 +42,14 @@ export function usePrinterStatus(endpoint: Endpoint | undefined, intervalMs = 25
   useEffect(() => {
     if (!kind || !baseUrl) return;
 
-    const client = controlFor({ kind, url: baseUrl, protocol });
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
 
     const poll = async () => {
       setLoading(true);
       try {
-        const next = await client.getStatus();
+        // Looked up on each poll: a CC2 client is replaced when its access code changes.
+        const next = await controlFor({ kind, url: baseUrl, protocol }).getStatus();
         statusCache.set(baseUrl, next);
         if (!cancelled) {
           setState(next);

@@ -3,7 +3,7 @@ import { cc2ClientFor, controlFor, probeLan } from '../endpoint';
 
 const mockMoonrakerProbe = jest.fn<(url: string) => Promise<boolean>>();
 const mockCc2Probe = jest.fn<(lanUrl: string) => Promise<boolean>>();
-const mockCc2Close = jest.fn();
+const mockCc2Dispose = jest.fn();
 const mockCc2Options: Record<string, unknown>[] = [];
 
 jest.mock('@teleforge/core', () => ({
@@ -15,7 +15,7 @@ jest.mock('@teleforge/core', () => ({
   Cc2LanClient: jest.fn().mockImplementation((opts) => {
     mockCc2Options.push(opts as Record<string, unknown>);
     const lanUrl = (opts as { lanUrl: string }).lanUrl;
-    return { kind: 'cc2', lanUrl, probe: () => mockCc2Probe(lanUrl), close: mockCc2Close };
+    return { kind: 'cc2', lanUrl, probe: () => mockCc2Probe(lanUrl), dispose: mockCc2Dispose };
   }),
 }));
 
@@ -24,7 +24,7 @@ const RELAY = 'https://shared-cc2.octoeverywhere.com';
 beforeEach(() => {
   mockMoonrakerProbe.mockReset();
   mockCc2Probe.mockReset();
-  mockCc2Close.mockReset();
+  mockCc2Dispose.mockReset();
   mockCc2Options.length = 0;
 });
 
@@ -73,7 +73,7 @@ describe('cc2ClientFor / controlFor', () => {
     const first = cc2ClientFor(printer);
     const second = cc2ClientFor({ ...printer, lanAccessCode: '9999' });
     expect(second).not.toBe(first);
-    expect(mockCc2Close).toHaveBeenCalledTimes(1);
+    expect(mockCc2Dispose).toHaveBeenCalledTimes(1);
   });
 
   it('uses Moonraker on a Klipper LAN endpoint and OE on the relay', () => {

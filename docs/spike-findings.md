@@ -271,8 +271,9 @@ memory for the session.
 ### Status
 
 Method **1002** returns the full status; the printer then pushes **deltas**
-(`method: 6000`, numbered `id`) on `api_status`, deep-merged into it. After 5
-gaps in the numbering TeleForge asks for 1002 again.
+(`method: 6000`, numbered `id`) on `api_status`, deep-merged into it. After
+any gap in the numbering (a delta lost: QoS 0) TeleForge asks for 1002 again,
+at most every 5 s.
 
 ```jsonc
 // 1002 result (or the first 6000 push)

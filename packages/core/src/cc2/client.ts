@@ -47,8 +47,8 @@ const HEARTBEAT_MS = 10_000;
 const STALE_MS = 30_000;
 const SERIAL_TIMEOUT_MS = 10_000;
 const REGISTER_TIMEOUT_MS = 5_000;
-/** Ask for a full status after this many gaps in the status sequence. */
-const MAX_STATUS_GAPS = 5;
+/** At most one full-status resync (after a gap in the deltas) this often. */
+const RESYNC_MIN_MS = 5_000;
 
 /** The host part of an http(s) URL (`http://192.168.1.240:80/x` → `192.168.1.240`). */
 export function hostOf(url: string): string {
@@ -105,7 +105,9 @@ class Session {
   private nextId = Math.floor(Math.random() * 100_000) + 1000;
   private readonly pending = new Map<number, Pending>();
   private lastStatusId?: number;
-  private statusGaps = 0;
+  /** A delta went missing: the merged status may be wrong until a full one arrives. */
+  private resyncPending = false;
+  private lastResyncAt = 0;
   private readonly requestTopic: string;
   readonly statusTopic: string;
   readonly responseTopic: string;
@@ -134,6 +136,15 @@ class Session {
 
   ping(): void {
     this.conn.publish(this.requestTopic, JSON.stringify({ type: 'PING' }));
+    this.maybeResync();
+  }
+
+  /** Ask for a full status if a delta was missed (throttled; the heartbeat retries). */
+  private maybeResync(): void {
+    if (!this.resyncPending || Date.now() - this.lastResyncAt < RESYNC_MIN_MS) return;
+    this.resyncPending = false;
+    this.lastResyncAt = Date.now();
+    this.send(Cc2Method.GET_STATUS);
   }
 
   /** Send a method and wait for its reply's `result` (rejects on a non-zero `error_code`). */
@@ -163,20 +174,15 @@ class Session {
   handleStatus(msg: Record<string, unknown>): void {
     this.lastHeardAt = Date.now();
     if (msg.method !== Cc2Method.ON_PRINTER_STATUS) return;
-    // Deltas are numbered; after repeated gaps, resync from a full status.
+    // Deltas are numbered: a missed one (QoS 0) leaves the merged status wrong,
+    // so any gap asks for a full status to start again from.
     const id = typeof msg.id === 'number' ? msg.id : undefined;
     if (id !== undefined) {
-      if (this.lastStatusId !== undefined && id !== this.lastStatusId + 1) {
-        if (++this.statusGaps >= MAX_STATUS_GAPS) {
-          this.statusGaps = 0;
-          this.send(Cc2Method.GET_STATUS);
-        }
-      } else {
-        this.statusGaps = 0;
-      }
+      if (this.lastStatusId !== undefined && id !== this.lastStatusId + 1) this.resyncPending = true;
       this.lastStatusId = id;
     }
     if (isRecord(msg.result)) deepMerge(this.status, msg.result);
+    this.maybeResync();
   }
 
   handleResponse(msg: Record<string, unknown>): void {
@@ -226,6 +232,7 @@ export class Cc2LanClient implements PrinterControl {
   private session?: Promise<Session>;
   private heartbeat?: ReturnType<typeof setInterval>;
   private lastUsedAt = Date.now();
+  private disposed = false;
 
   constructor(opts: Cc2LanClientOptions) {
     this.opts = opts;
@@ -249,6 +256,16 @@ export class Cc2LanClient implements PrinterControl {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Close for good (e.g. replaced by a client with another access code): the
+   * session closes and no call opens a new one, so a stale holder can't take
+   * one of the printer's few client slots.
+   */
+  dispose(): void {
+    this.disposed = true;
+    this.close();
   }
 
   /** Close the session now (the next call opens a new one). */
@@ -345,6 +362,7 @@ export class Cc2LanClient implements PrinterControl {
 
   /** The open session (opening one if needed); a silent one is dropped and reported. */
   private async activeSession(): Promise<Session> {
+    if (this.disposed) throw new Cc2Error('closed', 'This connection to the printer was replaced');
     this.lastUsedAt = Date.now();
     if (!this.session) {
       const opening = this.openSession();

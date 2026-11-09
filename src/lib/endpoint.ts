@@ -31,13 +31,15 @@ const cc2Clients = new Map<string, { client: Cc2LanClient; accessCode?: string }
 /**
  * The CC2 LAN client for a printer, created on first use. The serial number its
  * topics need is read from the broker or, failing that, asked through the relay.
- * A changed access code replaces the client (and closes the old session).
+ * A changed access code replaces the client: the old one is disposed (it never
+ * reopens a session), so callers look the client up with `controlFor` on each
+ * use rather than keeping it.
  */
 export function cc2ClientFor(printer: Pick<PrinterConfig, 'baseUrl' | 'lanUrl' | 'lanAccessCode'>): Cc2LanClient {
   const lanUrl = printer.lanUrl!;
   const existing = cc2Clients.get(lanUrl);
   if (existing && existing.accessCode === printer.lanAccessCode) return existing.client;
-  existing?.client.close();
+  existing?.client.dispose();
   const relay = new OctoEverywhereClient({ baseUrl: printer.baseUrl });
   const client = new Cc2LanClient({
     lanUrl,

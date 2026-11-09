@@ -45,7 +45,9 @@ export default function PrinterDashboardScreen() {
   // LAN when the printer's LAN URL answers, else the OE relay (see useEndpoint).
   const { endpoint, recheck } = useEndpoint(printer);
   const { state, error, refresh } = usePrinterStatus(endpoint);
-  const client = useMemo(() => (endpoint ? controlFor(endpoint) : undefined), [endpoint]);
+  // Looked up on each render (a map lookup): a CC2 client is replaced when its
+  // access code changes, so a memoized one could go stale.
+  const client = endpoint ? controlFor(endpoint) : undefined;
 
   // A failing LAN request usually means we left the network: re-probe now
   // rather than waiting for the next periodic check, to fall back sooner.

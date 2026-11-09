@@ -44,3 +44,6 @@ coverage/
 # local Android build artifacts + signing keystores
 /build-output
 /credentials
+
+# `bun add --no-save mqtt` for the spike scripts writes an empty package.json there.
+spike/package.json

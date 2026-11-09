@@ -8,7 +8,7 @@
 // so it is safe during a print. It takes one of the printer's ~4 client slots
 // while it runs.
 //
-// Needs the `mqtt` package:   cd spike && npm i mqtt   (or: bun add mqtt)
+// Needs the `mqtt` package:   cd spike && bun add --no-save mqtt
 //
 //     CC2_IP=192.168.1.240 node spike/probe-cc2-lan.mjs
 //     CC2_IP=… CC2_ACCESS_CODE=4242 CC2_SN=… CC2_SECS=20 node spike/probe-cc2-lan.mjs

@@ -8,3 +8,4 @@
 export * from './model/printer';
 export * from './octoeverywhere';
 export * from './moonraker';
+export type { PrinterControl } from './control';

@@ -11,7 +11,10 @@
 
 The list of things to implement (that I know) are missing:
  - Printer settings (a settings screen exists: rename / edit URL / remove)
-    - Add LAN URL to bypass octoeverywhere
+    - Add LAN URL to bypass octoeverywhere — DONE for Klipper printers (`lanUrl`,
+      `useEndpoint`: LAN when Moonraker answers, else the relay). The CC2 over LAN
+      (direct MQTT, see the community firmware
+      https://github.com/Neme77/centauri-carbon-2-community) is still to do.
     - Add option to switch between snapshot and stream (for printer view and full screen separately)
       — `WebcamView` already takes a `mode` ('stream' | 'snapshot') prop; needs a
       persisted per-printer setting + UI. (Snapshot only works over LAN; through

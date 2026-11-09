@@ -85,3 +85,135 @@ describe('MoonrakerClient files', () => {
     );
   });
 });
+
+const LAN = 'http://192.168.1.50';
+
+function routedClient(routes: Record<string, unknown>) {
+  const calls: { url: string; method?: string }[] = [];
+  const fetchImpl = jest.fn(async (url: string | URL | Request, init?: RequestInit) => {
+    const u = String(url);
+    calls.push({ url: u, method: init?.method });
+    const path = u.slice(LAN.length).split('?')[0];
+    if (!(path in routes)) return new Response('{}', { status: 404 });
+    return new Response(JSON.stringify(routes[path]), { status: 200 });
+  }) as unknown as typeof fetch;
+  return { client: new MoonrakerClient({ baseUrl: LAN, fetchImpl }), calls, fetchImpl };
+}
+
+describe('MoonrakerClient.probe', () => {
+  it('is true when Moonraker answers /server/info', async () => {
+    const { fetchImpl, calls } = routedClient({ '/server/info': { result: { klippy_state: 'ready' } } });
+    await expect(MoonrakerClient.probe(LAN, { fetchImpl })).resolves.toBe(true);
+    expect(calls[0].url).toBe(`${LAN}/server/info`);
+  });
+
+  it('is false on an HTTP error, a non-Moonraker body or a network failure', async () => {
+    const notFound = routedClient({}).fetchImpl;
+    await expect(MoonrakerClient.probe(LAN, { fetchImpl: notFound })).resolves.toBe(false);
+
+    const other = routedClient({ '/server/info': { hello: 'world' } }).fetchImpl;
+    await expect(MoonrakerClient.probe(LAN, { fetchImpl: other })).resolves.toBe(false);
+
+    const failing = jest.fn(async () => {
+      throw new TypeError('Network request failed');
+    }) as unknown as typeof fetch;
+    await expect(MoonrakerClient.probe(LAN, { fetchImpl: failing })).resolves.toBe(false);
+  });
+
+  it('is false when the request outlasts the timeout', async () => {
+    const hanging = jest.fn(() => new Promise<Response>(() => {})) as unknown as typeof fetch;
+    await expect(MoonrakerClient.probe(LAN, { fetchImpl: hanging, timeoutMs: 10 })).resolves.toBe(false);
+  });
+});
+
+describe('MoonrakerClient LAN control', () => {
+  const objects = ['webhooks', 'print_stats', 'extruder', 'extruder1', 'toolhead', 'heater_bed'];
+  const routes = {
+    '/printer/objects/list': { result: { objects } },
+    '/printer/objects/query': {
+      result: {
+        status: {
+          webhooks: { state: 'ready' },
+          print_stats: { state: 'standby' },
+          extruder: { temperature: 20, target: 0 },
+          extruder1: { temperature: 21, target: 0 },
+          toolhead: { extruder: 'extruder' },
+          heater_bed: { temperature: 22, target: 0 },
+        },
+      },
+    },
+    '/server/webcams/list': { result: { webcams: [{ name: 'Cam', stream_url: '/webcam/?action=stream' }] } },
+    '/printer/print/pause': { result: 'ok' },
+    '/printer/print/resume': { result: 'ok' },
+    '/printer/print/cancel': { result: 'ok' },
+    '/printer/gcode/script': { result: 'ok' },
+  };
+
+  it('maps status and lists the objects only once', async () => {
+    const { client, calls } = routedClient(routes);
+    const s = await client.getStatus(1);
+    expect(s.model).toBe('klipper');
+    expect(s.extruders).toHaveLength(2);
+    expect(s.bed?.actual).toBe(22);
+
+    await client.getStatus(2);
+    expect(calls.filter((c) => c.url.includes('/printer/objects/list'))).toHaveLength(1);
+  });
+
+  it('lists webcams on the LAN base', async () => {
+    const { client } = routedClient(routes);
+    const cams = await client.listWebcams();
+    expect(cams[0].streamUrl).toBe(`${LAN}/webcam/?action=stream`);
+  });
+
+  it('pauses, resumes and cancels via the print endpoints', async () => {
+    const { client, calls } = routedClient(routes);
+    await client.pause();
+    await client.resume();
+    await client.cancel();
+    expect(calls.map((c) => [c.method, c.url])).toEqual([
+      ['POST', `${LAN}/printer/print/pause`],
+      ['POST', `${LAN}/printer/print/resume`],
+      ['POST', `${LAN}/printer/print/cancel`],
+    ]);
+  });
+
+  const script = (url: string) => decodeURIComponent(url.split('script=')[1]);
+
+  it('homes, jogs relatively and restores the g-code state', async () => {
+    const { client, calls } = routedClient(routes);
+    await client.home();
+    await client.moveAxis('Z', -0.1);
+    expect(script(calls[0].url)).toBe('G28');
+    expect(script(calls[1].url).split('\n')).toEqual([
+      'SAVE_GCODE_STATE NAME=teleforge_jog',
+      'G91',
+      'G1 Z-0.1 F600',
+      'RESTORE_GCODE_STATE NAME=teleforge_jog',
+    ]);
+  });
+
+  it('extrudes on the active tool, changing tool first for another one', async () => {
+    const { client, calls } = routedClient(routes);
+    await client.getStatus(); // active tool: extruder (0)
+    await client.extrude(0, 5);
+    await client.extrude(1, -2);
+    const scripts = calls.filter((c) => c.url.includes('gcode/script')).map((c) => script(c.url).split('\n'));
+    expect(scripts[0]).toEqual([
+      'SAVE_GCODE_STATE NAME=teleforge_extrude',
+      'M83',
+      'G1 E5 F300',
+      'RESTORE_GCODE_STATE NAME=teleforge_extrude',
+    ]);
+    expect(scripts[1][0]).toBe('T1');
+    expect(scripts[1]).toContain('G1 E-2 F300');
+  });
+
+  it('sets heaters and lights with g-code', async () => {
+    const { client, calls } = routedClient(routes);
+    await client.setTemp({ toolC: 200, toolNumber: 1, bedC: 60 });
+    await client.setLight('caselight', false);
+    expect(calls.map((c) => script(c.url))).toEqual(['M104 T1 S200', 'M140 S60', 'SET_PIN PIN=caselight VALUE=0']);
+    await expect(client.setTemp({})).rejects.toThrow();
+  });
+});

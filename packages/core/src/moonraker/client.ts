@@ -1,19 +1,70 @@
+import type { PrinterControl } from '../control';
+import type { PrinterState, WebcamSource } from '../model/printer';
+import type { SetTempArgs } from '../octoeverywhere/client';
 import { OctoEverywhereError } from '../octoeverywhere/errors';
+import { mapMoonrakerStatus, statusObjectNames } from './mapStatus';
+import { mapMoonrakerWebcams, type RawMoonrakerWebcam } from './mapWebcams';
 import { parseMoonrakerTools, toolObjectNames, type MoonrakerTools } from './parseTools';
 
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, Math.round(n)));
 }
 
+// Jog feedrates (mm/min): Z is much slower than XY on most printers.
+const XY_FEED = 6000;
+const Z_FEED = 600;
+const EXTRUDE_FEED = 300;
+
 /**
- * Reads multi-nozzle data straight from a Klipper printer's Moonraker API,
- * relayed through the OctoEverywhere connection (the relay forwards `/printer`
- * and `/server` paths). OE's normalized status only reports one hotend, so
- * this fills the gap for printers like the Snapmaker U1 (4 nozzles).
+ * A Klipper printer's Moonraker API, either relayed through the OctoEverywhere
+ * connection (the relay forwards `/printer` and `/server` paths) or reached
+ * directly on the LAN. Through the relay it fills the gaps in OE's normalized
+ * status (multi-nozzle printers like the Snapmaker U1, fans); on the LAN it
+ * also implements `PrinterControl`, so it replaces the OE command API there.
  */
-export class MoonrakerClient {
+export class MoonrakerClient implements PrinterControl {
   private readonly base: string;
   private readonly fetchImpl: typeof fetch;
+  /** Printer objects, cached for status queries (they only change on a Klipper restart). */
+  private objects?: string[];
+  /** Active tool index from the last status, for `extrude`. */
+  private activeExtruder?: number;
+
+  /**
+   * Whether a Moonraker API answers at `baseUrl` within `timeoutMs` — used to
+   * decide if a printer's LAN URL is reachable from the current network.
+   */
+  static async probe(
+    baseUrl: string,
+    opts: { timeoutMs?: number; fetchImpl?: typeof fetch } = {},
+  ): Promise<boolean> {
+    const fetchImpl = opts.fetchImpl ?? globalThis.fetch.bind(globalThis);
+    const controller = typeof AbortController === 'function' ? new AbortController() : undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<false>((resolve) => {
+      timer = setTimeout(() => {
+        controller?.abort();
+        resolve(false);
+      }, opts.timeoutMs ?? 1500);
+    });
+    const request = (async () => {
+      try {
+        const res = await fetchImpl(`${baseUrl.replace(/\/+$/, '')}/server/info`, {
+          signal: controller?.signal,
+        });
+        if (!res.ok) return false;
+        const body = (await res.json()) as { result?: { klippy_state?: unknown } };
+        return typeof body?.result?.klippy_state === 'string';
+      } catch {
+        return false;
+      }
+    })();
+    try {
+      return await Promise.race([request, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   constructor(opts: { baseUrl: string; fetchImpl?: typeof fetch }) {
     this.base = opts.baseUrl.replace(/\/+$/, '');
@@ -32,9 +83,7 @@ export class MoonrakerClient {
     return (await res.json()) as T;
   }
 
-  /** Run a g-code script via Moonraker's HTTP API. */
-  async runGcode(script: string): Promise<void> {
-    const path = `/printer/gcode/script?script=${encodeURIComponent(script)}`;
+  private async post(path: string): Promise<void> {
     let res: Response;
     try {
       res = await this.fetchImpl(`${this.base}${path}`, { method: 'POST' });
@@ -42,6 +91,102 @@ export class MoonrakerClient {
       throw OctoEverywhereError.transport(e instanceof Error ? e.message : 'Network request failed');
     }
     if (!res.ok) throw OctoEverywhereError.transport(`HTTP ${res.status}`);
+  }
+
+  /** Run a g-code script via Moonraker's HTTP API. */
+  runGcode(script: string): Promise<void> {
+    return this.post(`/printer/gcode/script?script=${encodeURIComponent(script)}`);
+  }
+
+  /** Normalized status, straight from Moonraker (the LAN counterpart of OE's `status`). */
+  async getStatus(now: number = Date.now()): Promise<PrinterState> {
+    if (!this.objects) {
+      const list = await this.getJson<{ result: { objects: string[] } }>('/printer/objects/list');
+      this.objects = list.result.objects;
+    }
+    const objects = this.objects;
+    const query = statusObjectNames(objects).map((o) => encodeURIComponent(o)).join('&');
+    try {
+      const status = await this.getJson<{ result: { status: Record<string, any> } }>(
+        `/printer/objects/query?${query}`,
+      );
+      const state = mapMoonrakerStatus(objects, status.result.status, now);
+      this.activeExtruder = state.extruders.find((e) => e.active)?.index;
+      return state;
+    } catch (e) {
+      // Klipper may have restarted with a different config: re-list next time.
+      this.objects = undefined;
+      throw e;
+    }
+  }
+
+  /** Webcams configured in Moonraker, with URLs on this client's base (LAN). */
+  async listWebcams(): Promise<WebcamSource[]> {
+    const res = await this.getJson<{ result: { webcams?: RawMoonrakerWebcam[] } }>(
+      '/server/webcams/list',
+    );
+    return mapMoonrakerWebcams(res.result.webcams ?? [], this.base);
+  }
+
+  pause(): Promise<void> {
+    return this.post('/printer/print/pause');
+  }
+
+  resume(): Promise<void> {
+    return this.post('/printer/print/resume');
+  }
+
+  cancel(): Promise<void> {
+    return this.post('/printer/print/cancel');
+  }
+
+  /** Switch a light (an `output_pin`, as reported in `PrinterState.lights`). */
+  setLight(name: string, on: boolean): Promise<void> {
+    return this.runGcode(`SET_PIN PIN=${name} VALUE=${on ? 1 : 0}`);
+  }
+
+  /** Set heater targets, mirroring the OE `set-temp` command. */
+  async setTemp(args: SetTempArgs): Promise<void> {
+    if (args.bedC === undefined && args.toolC === undefined) {
+      throw new Error('setTemp: at least one of bedC/toolC is required');
+    }
+    if (args.toolC !== undefined) await this.setExtruderTemp(args.toolNumber ?? 0, args.toolC);
+    if (args.bedC !== undefined) await this.setBedTemp(args.bedC);
+  }
+
+  /** Home all axes. */
+  home(): Promise<void> {
+    return this.runGcode('G28');
+  }
+
+  /** Jog one axis by a signed distance (relative move; the g-code state is restored after). */
+  moveAxis(axis: 'X' | 'Y' | 'Z', distanceMm: number): Promise<void> {
+    const feed = axis === 'Z' ? Z_FEED : XY_FEED;
+    return this.runGcode(
+      [
+        'SAVE_GCODE_STATE NAME=teleforge_jog',
+        'G91',
+        `G1 ${axis}${distanceMm} F${feed}`,
+        'RESTORE_GCODE_STATE NAME=teleforge_jog',
+      ].join('\n'),
+    );
+  }
+
+  /**
+   * Extrude (positive) or retract (negative) on a tool. Selecting a tool other
+   * than the active one is a tool change (`T{n}`), as with the OE `extrude`.
+   */
+  extrude(extruder: number, distanceMm: number): Promise<void> {
+    const toolChange = this.activeExtruder !== undefined && extruder !== this.activeExtruder;
+    return this.runGcode(
+      [
+        ...(toolChange ? [`T${extruder}`] : []),
+        'SAVE_GCODE_STATE NAME=teleforge_extrude',
+        'M83',
+        `G1 E${distanceMm} F${EXTRUDE_FEED}`,
+        'RESTORE_GCODE_STATE NAME=teleforge_extrude',
+      ].join('\n'),
+    );
   }
 
   /**
@@ -96,15 +241,8 @@ export class MoonrakerClient {
   }
 
   /** Start printing a file (path relative to the gcodes root). */
-  async startPrint(path: string): Promise<void> {
-    const url = `${this.base}/printer/print/start?filename=${encodeURIComponent(path)}`;
-    let res: Response;
-    try {
-      res = await this.fetchImpl(url, { method: 'POST' });
-    } catch (e) {
-      throw OctoEverywhereError.transport(e instanceof Error ? e.message : 'Network request failed');
-    }
-    if (!res.ok) throw OctoEverywhereError.transport(`HTTP ${res.status}`);
+  startPrint(path: string): Promise<void> {
+    return this.post(`/printer/print/start?filename=${encodeURIComponent(path)}`);
   }
 }
 

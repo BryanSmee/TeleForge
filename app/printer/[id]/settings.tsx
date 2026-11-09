@@ -15,6 +15,7 @@ export default function PrinterSettingsScreen() {
 
   const [name, setName] = useState(printer?.name ?? '');
   const [url, setUrl] = useState(printer?.baseUrl ?? '');
+  const [lanUrl, setLanUrl] = useState(printer?.lanUrl ?? '');
 
   if (!printer) {
     return (
@@ -24,11 +25,17 @@ export default function PrinterSettingsScreen() {
     );
   }
 
-  const dirty = name.trim() !== printer.name || url.trim().replace(/\/+$/, '') !== printer.baseUrl;
-  const valid = name.trim().length > 0 && /^https?:\/\//.test(url.trim());
+  const trimUrl = (u: string) => u.trim().replace(/\/+$/, '');
+  const dirty =
+    name.trim() !== printer.name ||
+    trimUrl(url) !== printer.baseUrl ||
+    trimUrl(lanUrl) !== (printer.lanUrl ?? '');
+  // The LAN URL is optional: blank clears it.
+  const lanValid = lanUrl.trim() === '' || /^https?:\/\//.test(lanUrl.trim());
+  const valid = name.trim().length > 0 && /^https?:\/\//.test(url.trim()) && lanValid;
 
   const save = async () => {
-    await updatePrinter(printer.id, { name, baseUrl: url });
+    await updatePrinter(printer.id, { name, baseUrl: url, lanUrl });
     router.back();
   };
 
@@ -67,6 +74,21 @@ export default function PrinterSettingsScreen() {
           />
           <Text style={styles.hint}>{t('settings.urlHint')}</Text>
         </View>
+        <View>
+          <Text style={styles.label}>{t('settings.lanUrl')}</Text>
+          <TextInput
+            style={[styles.input, !lanValid && styles.inputInvalid]}
+            value={lanUrl}
+            onChangeText={setLanUrl}
+            placeholder="http://192.168.1.50"
+            placeholderTextColor={colors.muted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+          />
+          {!lanValid && <Text style={styles.error}>{t('settings.lanUrlInvalid')}</Text>}
+          <Text style={styles.hint}>{t('settings.lanUrlHint')}</Text>
+        </View>
         <Button label={t('common.save')} variant="primary" onPress={save} disabled={!dirty || !valid} />
       </Card>
 
@@ -90,5 +112,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 15,
   },
+  inputInvalid: { borderColor: colors.danger },
+  error: { color: colors.danger, fontSize: 12, marginTop: 8 },
   hint: { color: colors.muted, fontSize: 12, marginTop: 8 },
 });

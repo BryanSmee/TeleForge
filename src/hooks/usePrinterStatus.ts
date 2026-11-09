@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { OctoEverywhereClient, type PrinterState } from '@teleforge/core';
+import type { PrinterState } from '@teleforge/core';
+import { controlFor, type Endpoint } from '../lib/endpoint';
 
 export interface PrinterStatusResult {
   state?: PrinterState;
@@ -10,20 +11,23 @@ export interface PrinterStatusResult {
 }
 
 /**
- * Last-known status per base URL, kept for the lifetime of the JS session.
+ * Last-known status per endpoint URL, kept for the lifetime of the JS session.
  * Re-opening a printer seeds from this immediately so the screen isn't blank
  * for a relay round-trip; the live poll then refreshes it.
  */
 const statusCache = new Map<string, PrinterState>();
 
 /**
- * Poll a printer's normalized status on an interval.
+ * Poll a printer's normalized status on an interval, from whichever endpoint
+ * `useEndpoint` resolved (Moonraker on the LAN, the OE command API otherwise).
  *
  * Polls `getStatus` (cheap, uniform across CC2/Klipper). Live webcam streaming
  * is handled separately by the webcam screen, since the OE relay caps stream
  * length (~2 min) and back-to-back streams — see docs/spike-findings.md.
  */
-export function usePrinterStatus(baseUrl: string | undefined, intervalMs = 2500): PrinterStatusResult {
+export function usePrinterStatus(endpoint: Endpoint | undefined, intervalMs = 2500): PrinterStatusResult {
+  const kind = endpoint?.kind;
+  const baseUrl = endpoint?.url;
   // Lazy init from the cache (runs once) so re-opens render instantly without a
   // synchronous setState in the effect (which the react-hooks lint rule flags).
   const [state, setState] = useState<PrinterState | undefined>(() =>
@@ -34,9 +38,9 @@ export function usePrinterStatus(baseUrl: string | undefined, intervalMs = 2500)
   const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
-    if (!baseUrl) return;
+    if (!kind || !baseUrl) return;
 
-    const client = new OctoEverywhereClient({ baseUrl });
+    const client = controlFor({ kind, url: baseUrl });
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
 
@@ -66,7 +70,7 @@ export function usePrinterStatus(baseUrl: string | undefined, intervalMs = 2500)
       clearTimeout(timer);
     };
     // `nonce` bumps re-run the effect for a manual refresh.
-  }, [baseUrl, intervalMs, nonce]);
+  }, [kind, baseUrl, intervalMs, nonce]);
 
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
 

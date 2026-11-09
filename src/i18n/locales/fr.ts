@@ -37,6 +37,10 @@ export const fr: Record<TranslationKey, string> = {
   'add.save': 'Enregistrer l’imprimante',
 
   'settings.urlHint': 'L’URL est secrète — stockée dans le coffre sécurisé de l’appareil.',
+  'settings.lanUrl': 'URL locale (facultatif)',
+  'settings.lanUrlHint':
+    'Imprimantes Klipper uniquement. Quand cette adresse répond (par ex. à la maison), l’app parle directement à Moonraker au lieu de passer par OctoEverywhere. Laissez vide pour toujours utiliser le relais.',
+  'settings.lanUrlInvalid': 'Doit commencer par http:// ou https://',
   'settings.removePrinter': 'Supprimer l’imprimante',
 
   'dashboard.temperatures': 'Températures',
@@ -61,6 +65,8 @@ export const fr: Record<TranslationKey, string> = {
   'dashboard.resume': 'Reprendre',
   'dashboard.cancelPrint': 'Annuler l’impression',
   'dashboard.cancelConfirm': 'Annuler l’impression ?',
+  'dashboard.pathLan': 'LAN',
+  'dashboard.pathRemote': 'Distant',
 
   'motion.title': 'Mouvement',
   'motion.home': 'Origine tous les axes',

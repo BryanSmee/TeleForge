@@ -2,14 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { usePrintersStore } from '../../../src/store/printers';
+import { useEndpoint } from '../../../src/hooks/useEndpoint';
 import { MoonrakerClient, type GcodeFile } from '@teleforge/core';
 import { useTranslation } from '../../../src/i18n/useTranslation';
 import { colors } from '../../../src/components/ui';
 import { formatBytes, formatRelative } from '../../../src/lib/format';
 
 /**
- * Browse the printer's g-code files (Moonraker `gcodes` root) and start/restart
- * a print. Klipper/Moonraker only — the dashboard hides the entry for the CC2,
+ * Browse the printer's g-code files (Moonraker `gcodes` root, on the LAN when
+ * reachable) and start/restart a print. Klipper/Moonraker only — the dashboard hides the entry for the CC2,
  * whose file ops aren't exposed over the OE command API.
  */
 export default function FilesScreen() {
@@ -18,9 +19,11 @@ export default function FilesScreen() {
   const { t } = useTranslation();
   const printer = usePrintersStore((s) => s.printers.find((p) => p.id === id));
 
+  const { endpoint } = useEndpoint(printer);
+  // Moonraker's file API has the same paths on the LAN and through the relay.
   const client = useMemo(
-    () => (printer ? new MoonrakerClient({ baseUrl: printer.baseUrl }) : undefined),
-    [printer],
+    () => (endpoint ? new MoonrakerClient({ baseUrl: endpoint.url }) : undefined),
+    [endpoint],
   );
 
   const [files, setFiles] = useState<GcodeFile[]>([]);

@@ -32,7 +32,7 @@ function relayPath(base: string, raw: string | null | undefined): string | null 
  * rejects (e.g. `fps=10` when camera-streamer only allows 1 or 5); without it
  * the camera uses its default, which is what the bare stream URL does.
  */
-function stripFps(url: string): string {
+export function stripFps(url: string): string {
   const [path, query] = url.split('?');
   if (!query) return url;
   const params = query.split('&').filter((p) => !/^fps=/i.test(p));
@@ -54,7 +54,7 @@ export function relayWebcamUrl(baseUrl: string, rawStreamUrl: string | null): st
  * relay path or common MJPEG URL shapes; anything else (e.g. the Snapmaker "Gui"
  * screen mirror at `/screen/`) is treated as a `page`.
  */
-function isMjpegUrl(url: string): boolean {
+export function isMjpegUrl(url: string): boolean {
   const u = url.toLowerCase();
   return (
     u.includes('/oe-webcam-stream') ||

@@ -432,10 +432,19 @@ function ConnectionBanner({
   endpoint?: Endpoint;
 }) {
   const { t } = useTranslation();
+  // Which path the status comes from (LAN / Remote), also shown on errors.
+  const badge = endpoint && (
+    <View style={[styles.pathBadge, endpoint.kind === 'lan' && styles.pathBadgeLan]}>
+      <Text style={[styles.pathBadgeText, endpoint.kind === 'lan' && styles.pathBadgeTextLan]}>
+        {t(endpoint.kind === 'lan' ? 'dashboard.pathLan' : 'dashboard.pathRemote')}
+      </Text>
+    </View>
+  );
   if (error) {
     return (
-      <Card style={{ borderColor: colors.danger }}>
-        <Text style={{ color: colors.danger }}>{error.message}</Text>
+      <Card style={{ ...styles.statusRow, borderColor: colors.danger }}>
+        <Text style={{ color: colors.danger, flex: 1 }}>{error.message}</Text>
+        {badge}
       </Card>
     );
   }
@@ -451,13 +460,7 @@ function ConnectionBanner({
       <View style={[styles.statusDot, { backgroundColor: dotColor(state) }]} />
       <Text style={styles.statusText}>{t(`status.${state.connection}`)}</Text>
       {state.platformVersion ? <Text style={styles.muted}>{state.platformVersion}</Text> : null}
-      {endpoint && (
-        <View style={[styles.pathBadge, endpoint.kind === 'lan' && styles.pathBadgeLan]}>
-          <Text style={[styles.pathBadgeText, endpoint.kind === 'lan' && styles.pathBadgeTextLan]}>
-            {t(endpoint.kind === 'lan' ? 'dashboard.pathLan' : 'dashboard.pathRemote')}
-          </Text>
-        </View>
-      )}
+      {badge}
     </Card>
   );
 }

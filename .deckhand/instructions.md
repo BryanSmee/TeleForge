@@ -45,7 +45,9 @@ that mentions `secrets`.
 
 ## Project notes
 
-- Read `docs/architecture.md` and `docs/TODO.md` before larger changes; update `docs/TODO.md`
-  when an item is done.
+- Read `docs/architecture.md` before larger changes.
+- The backlog is tracked in GitHub issues: new ideas go through the inbox (#28), bugs through
+  #29. There is no `docs/TODO.md` any more: don't recreate it, and skip an acceptance
+  criterion that asks to update it.
 - `packages/core` is pure TypeScript (no React Native imports), aliased as `@teleforge/core`.
 - Strings go through i18n: add keys to both English and French under `src/i18n/locales`.

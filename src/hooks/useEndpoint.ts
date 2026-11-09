@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { MoonrakerClient } from '@teleforge/core';
 import type { PrinterConfig } from '../store/printers';
-import type { Endpoint } from '../lib/endpoint';
+import { probeLan, type Endpoint, type LanProtocol } from '../lib/endpoint';
 
-/** Last probe result per LAN URL, so other screens resolve instantly. */
-const reachableCache = new Map<string, boolean>();
+/** Last probe result per LAN URL (null: nothing answered), so other screens resolve instantly. */
+const reachableCache = new Map<string, LanProtocol | null>();
 
 export interface EndpointResult {
   /** Undefined while a LAN URL is first being probed (or without a printer). */
@@ -14,21 +13,20 @@ export interface EndpointResult {
 }
 
 /**
- * Pick the path to a printer: its LAN URL when Moonraker answers there within
- * `timeoutMs`, else the OctoEverywhere relay. Re-probes every `recheckMs`, so
+ * Pick the path to a printer: its LAN URL when Moonraker (Klipper) or the CC2's
+ * MQTT broker answers there (`probeLan`; `timeoutMs` bounds the connection
+ * attempt), else the OctoEverywhere relay. Re-probes every `recheckMs`, so
  * leaving or joining the home network switches paths without user action.
- *
- * Only Klipper/Moonraker printers can be reached on the LAN (the probe is
- * Moonraker's `/server/info`); any other printer always falls back to the relay.
  */
 export function useEndpoint(
-  printer: Pick<PrinterConfig, 'baseUrl' | 'lanUrl'> | undefined,
+  printer: Pick<PrinterConfig, 'baseUrl' | 'lanUrl' | 'lanAccessCode'> | undefined,
   { recheckMs = 20_000, timeoutMs = 1500 }: { recheckMs?: number; timeoutMs?: number } = {},
 ): EndpointResult {
   const baseUrl = printer?.baseUrl;
   const lanUrl = printer?.lanUrl;
+  const lanAccessCode = printer?.lanAccessCode;
   // Keyed by LAN URL so a result for an old URL is never applied to a new one.
-  const [probed, setProbed] = useState<{ lanUrl: string; reachable: boolean }>();
+  const [probed, setProbed] = useState<{ lanUrl: string; protocol: LanProtocol | null }>();
   const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
@@ -37,10 +35,10 @@ export function useEndpoint(
     let timer: ReturnType<typeof setTimeout>;
 
     const probe = async () => {
-      const reachable = await MoonrakerClient.probe(lanUrl, { timeoutMs });
-      reachableCache.set(lanUrl, reachable);
+      const protocol = (await probeLan({ baseUrl: baseUrl ?? '', lanUrl, lanAccessCode }, { timeoutMs })) ?? null;
+      reachableCache.set(lanUrl, protocol);
       if (cancelled) return;
-      setProbed({ lanUrl, reachable });
+      setProbed({ lanUrl, protocol });
       timer = setTimeout(probe, recheckMs);
     };
 
@@ -50,19 +48,19 @@ export function useEndpoint(
       clearTimeout(timer);
     };
     // `nonce` bumps re-run the effect for a manual recheck.
-  }, [lanUrl, recheckMs, timeoutMs, nonce]);
+  }, [baseUrl, lanUrl, lanAccessCode, recheckMs, timeoutMs, nonce]);
 
-  const reachable = !lanUrl
-    ? false
+  const protocol = !lanUrl
+    ? null
     : probed?.lanUrl === lanUrl
-      ? probed.reachable
+      ? probed.protocol
       : reachableCache.get(lanUrl);
 
-  const kind = !baseUrl || reachable === undefined ? undefined : reachable ? 'lan' : 'relay';
+  const kind = !baseUrl || protocol === undefined ? undefined : protocol ? 'lan' : 'relay';
   const url = kind === 'lan' ? lanUrl : baseUrl;
   const endpoint = useMemo<Endpoint | undefined>(
-    () => (kind && url ? { kind, url } : undefined),
-    [kind, url],
+    () => (kind && url ? (protocol ? { kind, url, protocol } : { kind, url }) : undefined),
+    [kind, url, protocol],
   );
   const recheck = useCallback(() => setNonce((n) => n + 1), []);
 

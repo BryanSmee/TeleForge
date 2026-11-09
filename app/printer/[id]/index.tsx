@@ -58,9 +58,9 @@ export default function PrinterDashboardScreen() {
   // so enable for any non-CC2 printer (the query no-ops if it isn't Moonraker).
   const isKlipper = !!state && state.model !== 'cc2';
   const tools = useMoonrakerTools(endpoint?.url, isKlipper);
-  // The CC2's combo unit (4 trays → 1 extruder) isn't in OE's normalized status;
-  // pull it from the raw MQTT passthrough (CC2 only, so always via the relay).
-  const cfs = useFilamentSystem(printer?.baseUrl, state?.model === 'cc2');
+  // The CC2's combo unit (4 trays → 1 extruder) isn't in OE's normalized status:
+  // ask the printer over MQTT (directly on the LAN, else OE's raw passthrough).
+  const cfs = useFilamentSystem(endpoint, state?.model === 'cc2');
   // Klipper temp-setting goes straight to Moonraker (OE's set-temp ignores the
   // tool number, so it can't target a specific nozzle).
   const moonraker = useMemo(

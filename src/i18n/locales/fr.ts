@@ -39,7 +39,10 @@ export const fr: Record<TranslationKey, string> = {
   'settings.urlHint': 'L’URL est secrète — stockée dans le coffre sécurisé de l’appareil.',
   'settings.lanUrl': 'URL locale (facultatif)',
   'settings.lanUrlHint':
-    'Imprimantes Klipper uniquement. Quand cette adresse répond (par ex. à la maison), l’app parle directement à Moonraker au lieu de passer par OctoEverywhere. Utilisez l’adresse où vous ouvrez Mainsail/Fluidd (par ex. http://192.168.1.50), pas le port 7125 de Moonraker, pour que les webcams et l’interface web fonctionnent aussi. Laissez vide pour toujours utiliser le relais.',
+    'Quand cette adresse répond (par ex. à la maison), l’app parle directement à l’imprimante au lieu de passer par OctoEverywhere : à Moonraker pour les imprimantes Klipper, en MQTT pour la Centauri Carbon 2. Pour Klipper, utilisez l’adresse où vous ouvrez Mainsail/Fluidd (par ex. http://192.168.1.50), pas le port 7125 de Moonraker, pour que les webcams et l’interface web fonctionnent aussi ; pour la CC2, son adresse IP. Laissez vide pour toujours utiliser le relais.',
+  'settings.lanAccessCode': 'Code d’accès (Centauri Carbon 2, facultatif)',
+  'settings.lanAccessCodeHint':
+    'Seulement si vous avez défini un code d’accès sur l’imprimante. Si le réseau local n’est pas utilisé, activez le mode « LAN uniquement » de l’imprimante. Stocké dans le stockage sécurisé de l’appareil.',
   'settings.lanUrlInvalid': 'Doit commencer par http:// ou https://',
   'settings.removePrinter': 'Supprimer l’imprimante',
 

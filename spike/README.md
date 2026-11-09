@@ -56,3 +56,16 @@ Confirm against [`../docs/spike-findings.md`](../docs/spike-findings.md):
 
 This validates the assumption the whole architecture rests on: a third-party App
 Connection can drive the normalized command API for the CC2 remotely.
+
+## Checking the CC2 on the LAN — `probe-cc2-lan.mjs`
+
+Runs the handshake the app's `Cc2LanClient` uses against the printer's own
+broker (`ws://<ip>:9001`): learns the serial number from the broker's traffic,
+registers, then prints the attributes (1001), the full status (1002) and a few
+status pushes. Read-only (queries and heartbeats only). Needs `npm i mqtt`.
+
+```bash
+CC2_IP=192.168.1.240 node spike/probe-cc2-lan.mjs
+# with an access code set on the printer, or if the broker refuses the wildcard:
+CC2_IP=… CC2_ACCESS_CODE=<code> CC2_SN=<serial> node spike/probe-cc2-lan.mjs
+```

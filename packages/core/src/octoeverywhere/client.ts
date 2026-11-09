@@ -89,6 +89,21 @@ export class OctoEverywhereClient implements PrinterControl {
     return (result.Response?.Payload?.result as RawCanvasResult) ?? null;
   }
 
+  /**
+   * The CC2's serial number (MQTT method 1001, attributes), through the same
+   * passthrough. The LAN client needs it for its topics. Undefined if the
+   * printer didn't answer or isn't a CC2.
+   */
+  async getCc2SerialNumber(): Promise<string | undefined> {
+    const result = await this.command<RawSendCommandResult>('send-command', 'POST', {
+      TransportType: 'mqtt',
+      Request: { Method: 1001, Params: {} },
+    });
+    if (!result?.ResponseReceived || result.IsError) return undefined;
+    const sn = (result.Response?.Payload?.result as { sn?: unknown } | undefined)?.sn;
+    return typeof sn === 'string' && sn ? sn : undefined;
+  }
+
   pause(): Promise<void> {
     return this.commandVoid('pause', 'POST');
   }

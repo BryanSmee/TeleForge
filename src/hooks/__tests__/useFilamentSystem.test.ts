@@ -39,14 +39,14 @@ describe('useFilamentSystem', () => {
 
   it('does not fetch when disabled (non-CC2)', async () => {
     mockGetCanvasInfo.mockResolvedValue(CANVAS);
-    const { result } = await renderHook(() => useFilamentSystem('https://u1.octoeverywhere.com', false, LONG));
+    const { result } = await renderHook(() => useFilamentSystem({ kind: 'relay', url: 'https://u1.octoeverywhere.com' }, false, LONG));
     expect(result.current).toBeUndefined();
     expect(mockGetCanvasInfo).not.toHaveBeenCalled();
   });
 
   it('maps the combo trays when enabled', async () => {
     mockGetCanvasInfo.mockResolvedValue(CANVAS);
-    const { result } = await renderHook(() => useFilamentSystem('https://cc2.octoeverywhere.com', true, LONG));
+    const { result } = await renderHook(() => useFilamentSystem({ kind: 'relay', url: 'https://cc2.octoeverywhere.com' }, true, LONG));
 
     await waitFor(() => expect(result.current).toBeDefined());
     expect(result.current?.activeTrayId).toBe(1);

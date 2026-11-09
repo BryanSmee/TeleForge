@@ -39,7 +39,7 @@ export const fr: Record<TranslationKey, string> = {
   'settings.urlHint': 'L’URL est secrète — stockée dans le coffre sécurisé de l’appareil.',
   'settings.lanUrl': 'URL locale (facultatif)',
   'settings.lanUrlHint':
-    'Imprimantes Klipper uniquement. Quand cette adresse répond (par ex. à la maison), l’app parle directement à Moonraker au lieu de passer par OctoEverywhere. Laissez vide pour toujours utiliser le relais.',
+    'Imprimantes Klipper uniquement. Quand cette adresse répond (par ex. à la maison), l’app parle directement à Moonraker au lieu de passer par OctoEverywhere. Utilisez l’adresse où vous ouvrez Mainsail/Fluidd (par ex. http://192.168.1.50), pas le port 7125 de Moonraker, pour que les webcams et l’interface web fonctionnent aussi. Laissez vide pour toujours utiliser le relais.',
   'settings.lanUrlInvalid': 'Doit commencer par http:// ou https://',
   'settings.removePrinter': 'Supprimer l’imprimante',
 

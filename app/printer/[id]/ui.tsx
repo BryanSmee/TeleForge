@@ -39,6 +39,8 @@ export default function PrinterWebUiScreen() {
           javaScriptEnabled
           domStorageEnabled
           mixedContentMode="always"
+          // A path switch (LAN ↔ relay) remounts and reloads the page: show the spinner again.
+          onLoadStart={() => setLoading(true)}
           onLoadEnd={() => setLoading(false)}
         />
       )}

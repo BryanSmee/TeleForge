@@ -32,7 +32,7 @@ export default function PrinterSettingsScreen() {
     trimUrl(lanUrl) !== (printer.lanUrl ?? '');
   // The LAN URL is optional: blank clears it.
   const lanValid = lanUrl.trim() === '' || /^https?:\/\//.test(lanUrl.trim());
-  const valid = name.trim().length > 0 && /^https?:\/\//.test(url.trim()) && lanValid;
+  const valid = name.trim().length > 0 && /^https:\/\//.test(url.trim()) && lanValid;
 
   const save = async () => {
     await updatePrinter(printer.id, { name, baseUrl: url, lanUrl });
